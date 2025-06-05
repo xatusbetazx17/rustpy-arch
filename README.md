@@ -45,6 +45,7 @@ rustpy-arch/
 
 ## 1. `rustpy-arch-bootstrap.sh`
 ~~~
+```bash
 #!/usr/bin/env bash
 #
 # rustpy-arch-all-in-one.sh
@@ -109,7 +110,7 @@ pacman -Sy --noconfirm --needed \
 # Enable NetworkManager
 systemctl enable NetworkManager
 
-# 2) Basic networkd/resolved setup (fallback)
+# 2) Basic systemd-networkd & systemd-resolved as fallback
 cat > /etc/systemd/network/20-wired.network << 'EOF'
 [Match]
 Name=en*
@@ -139,7 +140,7 @@ export PATH="/usr/local/bin:\$PATH"
 EOF
 chmod +x /etc/profile.d/99-localbin.sh
 
-# 5) Install Rust-based replacements and symlinks
+# 5) Install Rust-based replacements
 ln -sf /usr/bin/rg   /usr/local/bin/grep
 ln -sf /usr/bin/fd   /usr/local/bin/find
 ln -sf /usr/bin/bat  /usr/local/bin/cat
@@ -815,4 +816,93 @@ echo "Exit chroot, unmount your partitions, and reboot."
 echo "In GRUB, select 'RustPy-Arch'; the Rust init will run the graphical installer."
 echo "Follow the GUI to finish setting up networks, drivers, and component selection."
 
+# 15) NOTES & REQUIREMENTS
+
+cat << 'EOF'
+
+────────────────────────────────────────────────────────────────────
+ NOTES & REQUIREMENTS
+────────────────────────────────────────────────────────────────────
+
+1. HARDWARE & SYSTEM REQUIREMENTS
+   • A 64-bit x86_64 PC with UEFI or BIOS  
+   • At least 2 GB RAM (4 GB+ recommended for graphical installer)  
+   • A working network connection (Ethernet/Wi-Fi) during installation  
+   • A target partition (e.g., /dev/sda2) that will be reformatted as Btrfs  
+   • A separate EFI partition (e.g., /dev/sda1) mounted at /boot/efi (not overwritten)
+
+2. PREPARE THE DISK (BEFORE RUNNING SCRIPT)
+   a) Create or identify an EFI partition (≥ 300 MiB, FAT32). Mount it at /boot/efi.  
+   b) Create the root partition (e.g., /dev/sda2). The script will format it as Btrfs.  
+   c) (Optional) Create a small swap partition if desired; otherwise installer can use zram.  
+
+3. HOW TO RUN THE SCRIPT
+   a) Boot from the official Arch Linux ISO (x86_64).  
+   b) Connect to the internet (Ethernet is automatic; for Wi-Fi:  
+      # iwctl  
+      > device list  
+      > station wlan0 connect <SSID>  
+      > exit  
+   )  
+   c) Mount partitions:
+      # mount /dev/sda2 /mnt
+      # mkdir /mnt/boot
+      # mount /dev/sda1 /mnt/boot/efi  
+   d) arch-chroot into /mnt:
+      # arch-chroot /mnt /bin/bash  
+   e) Copy this script into /root, then:
+      # chmod +x /root/rustpy-arch-all-in-one.sh
+      # /root/rustpy-arch-all-in-one.sh  
+
+   f) Wait for the script to finish (it will build Rust init, format Btrfs, etc.).  
+   g) Exit the chroot:
+      # exit  
+      # umount -R /mnt  
+      # reboot  
+
+4. FIRST BOOT EXPERIENCE
+   • In GRUB, select “RustPy-Arch” (added automatically by grub-mkconfig).  
+   • The system boots into /sbin/init (Rust init).  
+   • Because /etc/rustpy-install-pending exists, the Rust init launches the
+     graphical GTK installer on an Xwayland server.  
+   • Use the installer window to:
+     1. Connect to Wi-Fi/Ethernet if needed (it lists SSIDs).  
+     2. Detect and install GPU/Wi-Fi drivers automatically.  
+     3. Select which “component groups” to install:
+        – rustpy-de-core (RustPyDE desktop)  
+        – rustpy-gaming (Steam, Wine, Vulkan libs)  
+        – rustpy-office (LibreOffice, PDF tools, printer support)  
+        – rustpy-dev (IDE, compilers, Docker, etc.)  
+        – rustpy-multimedia (VLC, GIMP, FFmpeg)  
+     4. Click “Install & Finish,” then “Reboot Now.”  
+
+   • On reboot, /etc/rustpy-install-pending has been removed.  
+   • You land directly in SDDM login for RustPyDE.  
+
+5. IMMUTABLE BTRFS LAYOUT
+   • The root filesystem is mounted read-only (`subvol=@`).  
+   • Home is on `subvol=@home` (writable).  
+   • /var is on `subvol=@var` (writable).  
+   • To snapshot or roll back, use:
+       # btrfs subvolume snapshot /@ /@backup  
+       # btrfs subvolume set-default <backup-uuid> /  
+
+6. WHAT YOU GET IMMEDIATELY AFTER INSTALL
+   • Rust-based coreutils (ls, cp, mv, grep, find, etc.).  
+   • Python network configuration via /etc/netconfig.yaml.  
+   • Rust init as PID 1 handling /etc/rustpy-install-pending.  
+   • Btrfs immutable root, /home, /var subvolumes.  
+   • SDDM login directing to RustPyDE (LeftWM + GTK panel/trays).  
+   • A basic terminal (Alacritty) and panel session.  
+   • Access to pacman to install additional packages.  
+
+7. LATER CUSTOMIZATION
+   • Edit /etc/netconfig.yaml to hardcode network interfaces if desired.  
+   • Install extra Python scripts or Rust daemons under /opt/python-scripts.  
+   • Add new files to /opt/rustpyde for theming or panel customization.  
+   • To update uutils or initrs, rebuild under /opt/initrs and copy to /sbin/init.  
+   • When installing new kernels, remember to rebuild initramfs if switching drivers.  
+
+────────────────────────────────────────────────────────────────────
+```
 ~~~
