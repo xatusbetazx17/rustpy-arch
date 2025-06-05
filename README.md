@@ -45,7 +45,7 @@ rustpy-arch/
 
 ## 1. `rustpy-arch-bootstrap.sh`
 ~~~
-```bash
+````bash
 #!/usr/bin/env bash
 #
 # rustpy-arch-all-in-one.sh
@@ -61,15 +61,40 @@ rustpy-arch/
 # WARNING: This will wipe/reconfigure your target root device (/dev/sda2
 # by default), so only run on a test/new system.
 #
-# USAGE:
-#   1. Boot Arch ISO, set up basic internet if needed, mount your target
-#      root (e.g. /dev/sda2) and arch-chroot into it:
+# USAGE (once booted into an Arch live environment):
+#   1. Download the official Arch Linux ISO and write it to a USB stick:
+#        • Using balenaEtcher (GUI) or dd (CLI):
+#            # dd if=/path/to/archlinux.iso of=/dev/sdX bs=4M status=progress oflag=sync
+#        • (Replace /dev/sdX with your USB device; be careful not to overwrite other disks.)
+#   2. Boot from that USB on your target machine.
+#   3. From the Arch live prompt:
+#        # loadkeys us      # (if needed to set your keyboard layout)
+#        # timedatectl set-ntp true
+#        # iwctl             # (if you need to connect to Wi-Fi; then “exit”)
+#   4. Prepare partitions:
+#        # fdisk /dev/sda    # or use cfdisk, parted, etc.
+#        • Create an EFI partition (~300 MiB, FAT32)—e.g., /dev/sda1
+#        • Create a root partition—e.g., /dev/sda2 (will be formatted as Btrfs)
+#        • (Optional) Create swap if desired—e.g., /dev/sda3
+#   5. Mount partitions:
 #        # mount /dev/sda2 /mnt
+#        # mkdir -p /mnt/boot/efi
+#        # mount /dev/sda1 /mnt/boot/efi
+#        # mkswap /dev/sda3 && swapon /dev/sda3   # (if you made swap)
+#   6. Arch‐chroot into /mnt:
+#        # pacstrap /mnt base   # (or skip if you prefer to just chroot and let the script install)
 #        # arch-chroot /mnt /bin/bash
-#   2. Copy this script into /mnt/root, chmod +x it, then inside chroot run:
+#   7. Copy this script into the chroot:
+#        # cp /path/to/rustpy-arch-all-in-one.sh /root/
+#        # chmod +x /root/rustpy-arch-all-in-one.sh
+#   8. Run the script:
 #        # /root/rustpy-arch-all-in-one.sh
-#   3. When it finishes, exit chroot, unmount, reboot. Select “RustPy-Arch”
-#      in GRUB. The custom init will launch the graphical installer.
+#   9. When it finishes, exit chroot and reboot:
+#        # exit
+#        # umount -R /mnt
+#        # reboot
+#   10. In GRUB, select “RustPy-Arch.” The Rust-based init will launch the
+#       graphical installer automatically—follow its steps to complete setup.
 #
 set -euo pipefail
 
@@ -826,83 +851,131 @@ cat << 'EOF'
 
 1. HARDWARE & SYSTEM REQUIREMENTS
    • A 64-bit x86_64 PC with UEFI or BIOS  
-   • At least 2 GB RAM (4 GB+ recommended for graphical installer)  
+   • At least 2 GB RAM (4 GB+ recommended for the graphical installer)  
    • A working network connection (Ethernet/Wi-Fi) during installation  
    • A target partition (e.g., /dev/sda2) that will be reformatted as Btrfs  
-   • A separate EFI partition (e.g., /dev/sda1) mounted at /boot/efi (not overwritten)
+   • A separate EFI partition (e.g., /dev/sda1) mounted at /boot/efi (not overwritten)  
 
-2. PREPARE THE DISK (BEFORE RUNNING SCRIPT)
-   a) Create or identify an EFI partition (≥ 300 MiB, FAT32). Mount it at /boot/efi.  
-   b) Create the root partition (e.g., /dev/sda2). The script will format it as Btrfs.  
-   c) (Optional) Create a small swap partition if desired; otherwise installer can use zram.  
+2. BOOT MEDIA PREPARATION
+   a) Download the official Arch Linux ISO (https://archlinux.org/download).  
+   b) Write it to a USB stick (or DVD) using one of:  
+      • **balenaEtcher** (GUI)  
+      • **dd** (CLI):
+        ```
+        dd if=/path/to/archlinux.iso of=/dev/sdX bs=4M status=progress oflag=sync
+        ```
+        – Replace **/dev/sdX** with your USB device (e.g., /dev/sdb). Be double-sure not to overwrite your main disk.  
 
-3. HOW TO RUN THE SCRIPT
-   a) Boot from the official Arch Linux ISO (x86_64).  
-   b) Connect to the internet (Ethernet is automatic; for Wi-Fi:  
-      # iwctl  
-      > device list  
-      > station wlan0 connect <SSID>  
-      > exit  
-   )  
-   c) Mount partitions:
-      # mount /dev/sda2 /mnt
-      # mkdir /mnt/boot
-      # mount /dev/sda1 /mnt/boot/efi  
-   d) arch-chroot into /mnt:
-      # arch-chroot /mnt /bin/bash  
-   e) Copy this script into /root, then:
-      # chmod +x /root/rustpy-arch-all-in-one.sh
-      # /root/rustpy-arch-all-in-one.sh  
+3. DISK & PARTITION SETUP (IN LIVE ENVIRONMENT)
+   a) Boot from your freshly-written USB or DVD.  
+   b) (Optional) Set your keyboard layout, e.g.:
+      ```
+      loadkeys us
+      ```  
+   c) Ensure network connectivity:
+      – **Ethernet** is usually automatic.  
+      – For **Wi-Fi** (iwctl):
+        ```
+        iwctl
+        > device list
+        > station wlan0 connect <SSID>
+        > exit
+        ```  
+   d) Partition the target disk (e.g., /dev/sda):
+      ```
+      fdisk /dev/sda       # or cfdisk, parted, gdisk, etc.
+      ```
+      – Create an **EFI partition** (~300 MiB, FAT32) → example: /dev/sda1  
+      – Create the **root partition** → example: /dev/sda2 (will become Btrfs)  
+      – (Optional) Create a **swap partition** → example: /dev/sda3  
+   e) Format & mount:
+      ```
+      mkfs.fat -F32 /dev/sda1
+      mkfs.btrfs /dev/sda2
+      mkswap /dev/sda3   # if you created swap
+      swapon /dev/sda3
+      mount /dev/sda2 /mnt
+      mkdir -p /mnt/boot/efi
+      mount /dev/sda1 /mnt/boot/efi
+      ```  
 
-   f) Wait for the script to finish (it will build Rust init, format Btrfs, etc.).  
-   g) Exit the chroot:
-      # exit  
-      # umount -R /mnt  
-      # reboot  
+4. ARCH‐CHROOT INTO /mnt
+   a) (Optional) If you want to pre‐install “base” packages first:
+      ```
+      pacstrap /mnt base
+      ```
+   b) Enter the new root:
+      ```
+      arch-chroot /mnt /bin/bash
+      ```
 
-4. FIRST BOOT EXPERIENCE
-   • In GRUB, select “RustPy-Arch” (added automatically by grub-mkconfig).  
-   • The system boots into /sbin/init (Rust init).  
-   • Because /etc/rustpy-install-pending exists, the Rust init launches the
-     graphical GTK installer on an Xwayland server.  
-   • Use the installer window to:
-     1. Connect to Wi-Fi/Ethernet if needed (it lists SSIDs).  
-     2. Detect and install GPU/Wi-Fi drivers automatically.  
-     3. Select which “component groups” to install:
-        – rustpy-de-core (RustPyDE desktop)  
-        – rustpy-gaming (Steam, Wine, Vulkan libs)  
-        – rustpy-office (LibreOffice, PDF tools, printer support)  
-        – rustpy-dev (IDE, compilers, Docker, etc.)  
-        – rustpy-multimedia (VLC, GIMP, FFmpeg)  
-     4. Click “Install & Finish,” then “Reboot Now.”  
+5. RUN THE ALL-IN-ONE SCRIPT
+````
 
-   • On reboot, /etc/rustpy-install-pending has been removed.  
-   • You land directly in SDDM login for RustPyDE.  
+cp /path/to/rustpy-arch-all-in-one.sh /root/
+chmod +x /root/rustpy-arch-all-in-one.sh
+/root/rustpy-arch-all-in-one.sh
 
-5. IMMUTABLE BTRFS LAYOUT
-   • The root filesystem is mounted read-only (`subvol=@`).  
-   • Home is on `subvol=@home` (writable).  
-   • /var is on `subvol=@var` (writable).  
-   • To snapshot or roll back, use:
-       # btrfs subvolume snapshot /@ /@backup  
-       # btrfs subvolume set-default <backup-uuid> /  
+```
+– The script will install Rust init, Rust coreutils, Python installer, Btrfs layout, RustPyDE, and all meta-packages.  
+– Wait until it finishes (may take 10–20 minutes, depending on your network speed).
 
-6. WHAT YOU GET IMMEDIATELY AFTER INSTALL
-   • Rust-based coreutils (ls, cp, mv, grep, find, etc.).  
-   • Python network configuration via /etc/netconfig.yaml.  
-   • Rust init as PID 1 handling /etc/rustpy-install-pending.  
-   • Btrfs immutable root, /home, /var subvolumes.  
-   • SDDM login directing to RustPyDE (LeftWM + GTK panel/trays).  
-   • A basic terminal (Alacritty) and panel session.  
-   • Access to pacman to install additional packages.  
+6. EXIT & REBOOT
+```
 
-7. LATER CUSTOMIZATION
-   • Edit /etc/netconfig.yaml to hardcode network interfaces if desired.  
-   • Install extra Python scripts or Rust daemons under /opt/python-scripts.  
-   • Add new files to /opt/rustpyde for theming or panel customization.  
-   • To update uutils or initrs, rebuild under /opt/initrs and copy to /sbin/init.  
-   • When installing new kernels, remember to rebuild initramfs if switching drivers.  
+exit
+umount -R /mnt
+reboot
+
+````
+– In the GRUB menu, choose **“RustPy-Arch”**.  
+
+7. FIRST BOOT & GRAPHICAL INSTALLER
+• Your system lands in the Rust-based init (PID 1).  
+• Because `/etc/rustpy-install-pending` still exists, it launches the **graphical GTK installer** under Xwayland.  
+• Follow the installer screens to:
+  1. **Connect to network** (Wi-Fi/Ethernet).  
+  2. **Detect & install GPU/Wi-Fi drivers** automatically.  
+  3. **Select component groups** to install:
+     – rustpy-de-core (RustPyDE desktop)  
+     – rustpy-gaming (Steam, Wine, Vulkan)  
+     – rustpy-office (LibreOffice, PDF tools, printers)  
+     – rustpy-dev (IDE, compilers, Docker)  
+     – rustpy-multimedia (VLC, GIMP, FFmpeg)  
+  4. Click **“Install & Finish”**, then **“Reboot Now.”**  
+
+• After reboot, `/etc/rustpy-install-pending` is removed, and you land in SDDM → select **RustPyDE**.
+
+8. IMMUTABLE BTRFS LAYOUT EXPLAINED
+• `/` is mounted read-only on `subvol=@`.  
+• `/home` is on `subvol=@home` (writable).  
+• `/var` is on `subvol=@var` (writable).  
+• To snapshot/rollback:
+  ```
+  btrfs subvolume snapshot /@ /@backup
+  btrfs subvolume set-default <backup-uuid> /
+  ```
+
+9. IMMEDIATE POST-INSTALL EXPERIENCE
+• **Rust coreutils** replace GNU utilities (`ls, cp, mv, grep, find, cat`).  
+• **Python network‐config** lives in `/etc/netconfig.yaml` (edit to hardcode settings).  
+• **Rust init** handles the first-boot installer.  
+• **Btrfs immutable root** with separate `/home` and `/var`.  
+• **SDDM** → **RustPyDE** (LeftWM + GTK panel/trays + Alacritty).  
+• **pacman** is available to install anything else.
+
+10. CUSTOMIZATION & UPDATES
+ • Edit `/etc/netconfig.yaml` to define static IPs or additional interfaces.  
+ • Add or modify `/opt/python-scripts` or `/opt/rustpyde` for custom scripts or themes.  
+ • To update uutils or initrs:
+   ```
+   cd /opt/initrs
+   git pull
+   cargo build --release
+   install -Dm755 target/release/initrs /sbin/init
+   ```
+ • After kernel updates, run `mkinitcpio -P` if you add new drivers.  
 
 ────────────────────────────────────────────────────────────────────
-```
+````
 ~~~
