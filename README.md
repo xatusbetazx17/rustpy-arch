@@ -22,7 +22,7 @@ To simplify installation, start with one of these Arch-based ISO images that pro
 
 Once your base system (EndeavourOS or ArcoLinux) is fully installed and you’ve booted into the new environment, open a terminal and run:
 
-```bash
+~~~
 # Clone the RustPy-Arch repository
 git clone https://github.com/xatusbetazx17/rustpy-arch.git
 cd rustpy-arch
@@ -30,7 +30,7 @@ cd rustpy-arch
 # Make the installer script executable and run it
 chmod +x rustpy-arch-all-in-one.sh
 ./rustpy-arch-all-in-one.sh
-
+~~~
 
 
 ## Repository Layout
