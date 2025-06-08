@@ -80,12 +80,12 @@ def is_installed(pkg):
     return (r.returncode == 0)
 
 # Helper to run commands
-def run(cmd_list, wait=True):
+def run(cmd_list, wait=True, cwd=None):
     try:
         if wait:
-            subprocess.run(cmd_list, check=True)
+            subprocess.run(cmd_list, check=True, cwd=cwd)
         else:
-            subprocess.Popen(cmd_list)
+            subprocess.Popen(cmd_list, cwd=cwd)
     except subprocess.CalledProcessError as e:
         print(f"Error running {cmd_list}: {e}")
 
@@ -184,7 +184,7 @@ class InstallerGUI(Gtk.Window):
 
     def refresh_mirrors(self, btn):
         run(["reflector","--country","US","--latest","5","--sort","rate","--save","/etc/pacman.d/mirrorlist"])
-        self._message("Mirrors updated")
+        self._message("Mirrors refreshed")
 
     def connect_wifi(self, btn):
         ssid = self.ssid.get_text()
@@ -194,24 +194,47 @@ class InstallerGUI(Gtk.Window):
 
     def _message(self, msg):
         dlg = Gtk.MessageDialog(self, 0, Gtk.MessageType.INFO, Gtk.ButtonsType.OK, msg)
-        dlg.run(); dlg.destroy()
+        dlg.run()
+        dlg.destroy()
 
     def on_start(self, btn):
-        # Gather selected packages
-        pkgs = []
-        for pkg,cb in self.checks.items():
-            if cb.get_active() and cb.get_sensitive():
-                pkgs.append(pkg)
-        # GPU driver
+        # Determine base repository directory
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+        # Gather selected components
+        selected = [pkg for pkg, cb in self.checks.items() if cb.get_active() and cb.get_sensitive()]
+        # Include GPU driver if chosen
         if self.cb_gpu.get_active():
             gpu = detect_gpu()
             if gpu:
-                pkgs.append(gpu)
-        if pkgs:
-            run(["pacman","-Sy","--noconfirm"] + pkgs)
-        # Finally, call the main bootstrap
-        run(["bash","/root/rustpy-arch-bootstrap.sh"], wait=False)
-        self._message("Installation started.")
+                selected.append(gpu)
+
+        # Split into official packages vs local meta-packages
+        official = [pkg for pkg in selected if not pkg.startswith('rustpy-')]
+        local_pkgs = [pkg for pkg in selected if pkg.startswith('rustpy-')]
+
+        # Install official packages via pacman
+        if official:
+            self._message(f"Installing official packages: {', '.join(official)}")
+            run(["pacman", "-Sy", "--noconfirm"] + official)
+
+        # Build and install local meta-packages
+        for pkg in local_pkgs:
+            pkg_dir = os.path.join(base_dir, pkg)
+            if os.path.isdir(pkg_dir):
+                self._message(f"Building and installing {pkg}...")
+                run(["makepkg", "-si", "--noconfirm"], cwd=pkg_dir)
+            else:
+                self._message(f"Warning: directory for {pkg} not found, skipping")
+
+        # Finally, launch the bootstrap script for everything else
+        bootstrap = os.path.join(base_dir, 'rustpy-arch-bootstrap.sh')
+        if os.path.isfile(bootstrap):
+            self._message("Launching full bootstrap script in background...")
+            run(["bash", bootstrap], wait=False)
+        else:
+            self._message("Error: bootstrap script not found")
+
         Gtk.main_quit()
 
 if __name__ == '__main__':
