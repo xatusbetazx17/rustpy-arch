@@ -11,6 +11,17 @@ A custom Arch‐based distribution that uses:
 - Meta‐packages for “Gaming,” “Office,” “Development,” and “Multimedia” profiles.
 
 ---
+## 📥 Base Live Environments
+
+To simplify installation and provide a GUI pre-install environment, you can start from one of these Arch‑based ISO images and then run rustpy-arch-all-in-one.sh afterward:
+
+EndeavourOS Minimal ISOA nearly-vanilla Arch live desktop (XFCE) with Calamares GUI installer.
+
+ArcoLinuxD ISOA minimal Arch live session; add Calamares (pacman -S calamares calamares-plugins-archiso) for GUI installation.
+
+These give you a graphical environment for mirror selection, partitioning, and networking before applying the RustPy-Arch script.
+
+
 
 ## Repository Layout
 
