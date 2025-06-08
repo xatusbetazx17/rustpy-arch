@@ -15,7 +15,7 @@ A custom Arch‐based distribution that uses:
 
 To simplify installation, start with one of these Arch-based ISO images that provide a graphical installer:
 
-- [EndeavourOS Minimal ISO](https://endeavouros.com/latest-release)  
+- [EndeavourOS Minimal ISO](https://endeavouros.com)  
 - [ArcoLinuxD ISO](https://arcolinux.info/downloads)  
 
 ## ⚙️ Install RustPy-Arch Script
