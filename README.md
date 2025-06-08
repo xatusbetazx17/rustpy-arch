@@ -28,8 +28,8 @@ git clone https://github.com/xatusbetazx17/rustpy-arch.git
 cd rustpy-arch
 
 # Make the installer script executable and run it
-chmod +x rustpy-arch-all-in-one.sh
-./rustpy-arch-all-in-one.sh
+chmod +x rustpy-arch-bootstrap.sh
+./rustpy-arch-bootstrap.sh
 ~~~
 
 
