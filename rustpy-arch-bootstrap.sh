@@ -1,4 +1,3 @@
-````bash
 #!/usr/bin/env bash
 #
 # rustpy-arch-all-in-one.sh
@@ -930,4 +929,4 @@ reboot
  • After kernel updates, run `mkinitcpio -P` if you add new drivers.  
 
 ────────────────────────────────────────────────────────────────────
-````
+
