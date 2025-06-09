@@ -69,8 +69,9 @@ rustpy-arch/
 #!/usr/bin/env python3
 import os
 import subprocess
+import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk
+from gi.repository import Gtk, GObject
 
 # -----------------------------------------------------------------------------
 # Helpers
@@ -146,7 +147,7 @@ class InstallerGUI(Gtk.Window):
         btn_mirror.connect("clicked", lambda w: self._refresh_mirrors())
         page.pack_start(btn_mirror, False, False, 0)
 
-        page.pack_start(Gtk.Label(label="Available Wi‑Fi Networks:"), False, False, 0)
+        page.pack_start(Gtk.Label(label="Available Wi-Fi Networks:"), False, False, 0)
         self.cb_ssid = Gtk.ComboBoxText()
         page.pack_start(self.cb_ssid, False, False, 0)
         self._refresh_ssids()
@@ -190,7 +191,7 @@ class InstallerGUI(Gtk.Window):
         except Exception as e:
             self._message(f"Failed to connect: {e}")
 
-    # -- Disk Page -----------------------------------------------------------
+    # -- Disk Page ------------------------------------------------------------
     def _build_disk_page(self):
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.nb.append_page(page, Gtk.Label(label="Disk"))
@@ -210,16 +211,16 @@ class InstallerGUI(Gtk.Window):
         self.nb.append_page(page, Gtk.Label(label="Components"))
         self.ck = {}
         comps = {
-            'rust':            'Rust compiler',
-            'git':             'Git',
-            'base':            'Base system',
-            'rustpy-de-core':  'RustPyDE desktop',
-            'rustpy-gaming':   'Gaming profile',
-            'rustpy-office':   'Office profile',
-            'rustpy-dev':      'Development tools',
+            'rust':             'Rust compiler',
+            'git':              'Git',
+            'base':             'Base system',
+            'rustpy-de-core':   'RustPyDE desktop',
+            'rustpy-gaming':    'Gaming profile',
+            'rustpy-office':    'Office profile',
+            'rustpy-dev':       'Development tools',
             'rustpy-multimedia':'Multimedia suite',
         }
-        for pkg,label in comps.items():
+        for pkg, label in comps.items():
             cb = Gtk.CheckButton(label=label)
             if is_installed(pkg):
                 cb.set_sensitive(False)
@@ -243,7 +244,7 @@ class InstallerGUI(Gtk.Window):
         base_dir = os.path.dirname(os.path.abspath(__file__))
 
         # 1) collect selections
-        selected = [p for p,cb in self.ck.items() if cb.get_active() and cb.get_sensitive()]
+        selected = [p for p, cb in self.ck.items() if cb.get_active() and cb.get_sensitive()]
         if self.cb_gpu.get_active() and detect_gpu():
             selected.append(detect_gpu())
         official  = [p for p in selected if not p.startswith('rustpy-')]
@@ -267,10 +268,10 @@ class InstallerGUI(Gtk.Window):
 pkgname={meta}
 pkgver=1.0.0
 pkgrel=1
-pkgdesc="RustPy-Arch meta-package: {meta}"\n
+pkgdesc="RustPy-Arch meta-package: {meta}"
 arch=('x86_64')
 license=('MIT')
-depends=('" + dep + "')
+depends=('{dep}')
 source=()
 sha256sums=('SKIP')
 
@@ -278,7 +279,7 @@ package() {{
   :  # meta only
 }}
 """
-                with open(os.path.join(d,'PKGBUILD'),'w') as fd:
+                with open(os.path.join(d, 'PKGBUILD'), 'w') as fd:
                     fd.write(skeleton)
                 self._message(f"Generated PKGBUILD for {meta}")
             self._message(f"Building {meta}…")
@@ -288,11 +289,11 @@ package() {{
                 self._message(f"makepkg failed: {e}")
 
         # 4) launch bootstrap
-        boot = os.path.join(base_dir,'rustpy-arch-bootstrap.sh')
+        boot = os.path.join(base_dir, 'rustpy-arch-bootstrap.sh')
         if not os.path.isfile(boot):
             return self._message("Bootstrap script missing!")
         self._message("Launching full bootstrap in background…")
-        run(['bash',boot], check=False)
+        run(['bash', boot], check=False)
 
         Gtk.main_quit()
 
