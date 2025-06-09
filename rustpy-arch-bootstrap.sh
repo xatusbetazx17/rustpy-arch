@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import os
 import subprocess
-import sys
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GObject
@@ -33,6 +32,12 @@ def detect_gpu():
         return 'mesa'
     return None
 
+# Scan available Wi-Fi networks using nmcli
+def scan_wifi():
+    result = subprocess.run(['nmcli', '-t', '-f', 'SSID', 'dev', 'wifi'], capture_output=True)
+    ssids = set(line for line in result.stdout.decode().splitlines() if line)
+    return sorted(ssids)
+
 class InstallerGUI(Gtk.Window):
     def __init__(self):
         super().__init__(title="RustPy-Arch Pre-Installer")
@@ -58,19 +63,31 @@ class InstallerGUI(Gtk.Window):
         # Page 1: Network
         page1 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin=8)
         self.notebook.append_page(page1, Gtk.Label(label="Network"))
+
+        # Mirror refresh
         btn_mirror = Gtk.Button(label="Refresh Mirrors")
         btn_mirror.connect("clicked", self.refresh_mirrors)
         page1.pack_start(btn_mirror, False, False, 0)
-        self.ssid = Gtk.Entry(); self.ssid.set_placeholder_text("SSID")
-        self.pwd  = Gtk.Entry(); self.pwd.set_placeholder_text("Password"); self.pwd.set_visibility(False)
+
+        # Wi-Fi networks combo
+        page1.pack_start(Gtk.Label(label="Select Wi-Fi Network:"), False, False, 0)
+        self.wifi_combo = Gtk.ComboBoxText()
+        for ssid in scan_wifi():
+            self.wifi_combo.append_text(ssid)
+        self.wifi_combo.set_active(0 if self.wifi_combo.get_model() else -1)
+        page1.pack_start(self.wifi_combo, False, False, 0)
+
+        # Password entry
+        page1.pack_start(Gtk.Label(label="Password (if required):"), False, False, 0)
+        self.pwd = Gtk.Entry(); self.pwd.set_visibility(False)
+        page1.pack_start(self.pwd, False, False, 0)
+
+        # Connect button
         btn_wifi = Gtk.Button(label="Connect Wi-Fi")
         btn_wifi.connect("clicked", self.connect_wifi)
-        page1.pack_start(Gtk.Label(label="Wi-Fi:"), False, False, 0)
-        page1.pack_start(self.ssid, False, False, 0)
-        page1.pack_start(self.pwd, False, False, 0)
         page1.pack_start(btn_wifi, False, False, 0)
 
-        # Page 2: Disk sizes (not yet hooked to actual partitioning)
+        # Page 2: Disk sizes
         page2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin=8)
         self.notebook.append_page(page2, Gtk.Label(label="Disk"))
         self.size_root = Gtk.SpinButton.new_with_range(10,500,5)
@@ -97,7 +114,7 @@ class InstallerGUI(Gtk.Window):
             'rustpy-dev': 'Dev profile',
             'rustpy-multimedia': 'Multimedia profile'
         }
-        for pkg,label in comps.items():
+        for pkg, label in comps.items():
             cb = Gtk.CheckButton(label=label)
             if is_installed(pkg):
                 cb.set_sensitive(False)
@@ -119,53 +136,69 @@ class InstallerGUI(Gtk.Window):
         self._message("Mirrors refreshed")
 
     def connect_wifi(self, btn):
-        ssid = self.ssid.get_text()
-        pwd  = self.pwd.get_text()
-        run(["iwctl","station","wlan0","connect", ssid])
-        self._message(f"Connecting to {ssid}")
+        ssid = self.wifi_combo.get_active_text()
+        pwd = self.pwd.get_text()
+        if ssid:
+            cmd = ["nmcli", "dev", "wifi", "connect", ssid]
+            if pwd:
+                cmd += ["password", pwd]
+            run(cmd)
+            self._message(f"Connecting to {ssid}")
+        else:
+            self._message("No Wi-Fi network selected.")
 
     def _message(self, msg):
         dlg = Gtk.MessageDialog(self, 0, Gtk.MessageType.INFO, Gtk.ButtonsType.OK, msg)
-        dlg.run()
-        dlg.destroy()
+        dlg.run(); dlg.destroy()
 
     def on_start(self, btn):
-        # Determine base repository directory
+        # Determine repo root
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
         # Gather selected components
         selected = [pkg for pkg, cb in self.checks.items() if cb.get_active() and cb.get_sensitive()]
-        # Include GPU driver if chosen
         if self.cb_gpu.get_active():
             gpu = detect_gpu()
             if gpu:
                 selected.append(gpu)
 
-        # Split into official packages vs local meta-packages
-        official = [pkg for pkg in selected if not pkg.startswith('rustpy-')]
-        local_pkgs = [pkg for pkg in selected if pkg.startswith('rustpy-')]
+        # Split official vs local
+        official = [p for p in selected if not p.startswith('rustpy-')]
+        local_pkgs = [p for p in selected if p.startswith('rustpy-')]
 
-        # Install official packages via pacman
         if official:
-            self._message(f"Installing official packages: {', '.join(official)}")
-            run(["pacman", "-Sy", "--noconfirm"] + official)
+            self._message(f"Installing: {', '.join(official)}")
+            run(["pacman","-Sy","--noconfirm"] + official)
 
-        # Build and install local meta-packages
         for pkg in local_pkgs:
             pkg_dir = os.path.join(base_dir, pkg)
-            if os.path.isdir(pkg_dir):
-                self._message(f"Building and installing {pkg}...")
-                run(["makepkg", "-si", "--noconfirm"], cwd=pkg_dir)
-            else:
-                self._message(f"Warning: directory for {pkg} not found, skipping")
+            if not os.path.isdir(pkg_dir):
+                os.makedirs(pkg_dir, exist_ok=True)
+                de = os.environ.get('XDG_CURRENT_DESKTOP','generic').lower()
+                template = f"""
+pkgname={pkg}
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="RustPy-Arch meta-package: {pkg}"
+arch=('x86_64')
+license=('MIT')
+depends=("{de}")
+source=()
+sha256sums=('SKIP')
+package() {{ :; }}
+"""
+                with open(os.path.join(pkg_dir,'PKGBUILD'),'w') as f:
+                    f.write(template)
+                self._message(f"Generated PKGBUILD for {pkg}")
+            self._message(f"Building {pkg}...")
+            run(["makepkg","-si","--noconfirm"], cwd=pkg_dir)
 
-        # Finally, launch the bootstrap script for everything else
-        bootstrap = os.path.join(base_dir, 'rustpy-arch-bootstrap.sh')
+        bootstrap = os.path.join(base_dir,'rustpy-arch-bootstrap.sh')
         if os.path.isfile(bootstrap):
-            self._message("Launching full bootstrap script in background...")
-            run(["bash", bootstrap], wait=False)
+            self._message("Launching bootstrap...")
+            run(["bash",bootstrap], wait=False)
         else:
-            self._message("Error: bootstrap script not found")
+            self._message("bootstrap script missing")
 
         Gtk.main_quit()
 
