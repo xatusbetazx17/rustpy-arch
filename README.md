@@ -74,8 +74,20 @@ gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk
 
 # -----------------------------------------------------------------------------
-# Helpers
+# Mappings & Helpers
 # -----------------------------------------------------------------------------
+# Map known XDG_CURRENT_DESKTOP values to real Arch package/group names
+DE_MAP = {
+    'xfce':          'xfce4',
+    'gnome':         'gnome',
+    'kde':           'plasma-desktop',
+    'deepin':        'deepin',
+    'lxqt':          'lxqt',
+    'mate':          'mate',
+    'cinnamon':      'cinnamon',
+    'budgie':        'budgie-desktop',
+}
+
 def run(cmd, check=True, cwd=None):
     """Run a command list, optionally in the background."""
     if check:
@@ -263,15 +275,18 @@ class InstallerGUI(Gtk.Window):
             d = os.path.join(base_dir, meta)
             if not os.path.isdir(d):
                 os.makedirs(d, exist_ok=True)
+                # detect user's desktop environment and map to real package
+                raw_de = os.environ.get('XDG_CURRENT_DESKTOP','').split(':')[0].lower()
+                de_dep = DE_MAP.get(raw_de, 'base')
+
                 skeleton = f"""\
 pkgname={meta}
 pkgver=1.0.0
 pkgrel=1
-pkgdesc="RustPy-Arch meta-package: {meta}"\
-
+pkgdesc="RustPy-Arch meta-package: {meta}"
 arch=('x86_64')
 license=('MIT')
-depends=()
+depends=('" + de_dep + "')
 source=()
 sha256sums=('SKIP')
 
@@ -281,7 +296,7 @@ package() {{
 """
                 with open(os.path.join(d,'PKGBUILD'),'w') as fd:
                     fd.write(skeleton)
-                self._message(f"Generated PKGBUILD for {meta}")
+                self._message(f"Generated PKGBUILD for {meta} (depends on {de_dep})")
             self._message(f"Building {meta}…")
             try:
                 run(['makepkg','-si','--noconfirm'], cwd=d)
@@ -292,7 +307,7 @@ package() {{
         if not os.path.isfile(boot):
             return self._message("Bootstrap script missing!")
         self._message("Launching full bootstrap…")
-        run(['bash', boot], check=False)
+        run(["bash", boot], check=False)
 
         Gtk.main_quit()
 
@@ -312,6 +327,5 @@ if __name__ == "__main__":
     win = InstallerGUI()
     win.connect("destroy", Gtk.main_quit)
     Gtk.main()
-
 
 ~~~
