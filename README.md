@@ -67,43 +67,47 @@ rustpy-arch/
 ## 1. `rustpy-arch-bootstrap.sh`
 ~~~
 #!/usr/bin/env python3
-import os
-import subprocess
-import random
+# Fixed missing import of gi before calling require_version
 import gi
-from pathlib import Path
-
-# Ensure GTK 3 is loaded
+# must call require_version before importing Gtk
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GObject
+import os
+import subprocess
 
-# Pillow for wallpaper generation
-from PIL import Image, ImageDraw
-
-# Map XDG_CURRENT_DESKTOP to Arch DE package names
-de_map = {
-    'xfce': 'xfce4',
-    'gnome': 'gnome',
-    'kde': 'plasma-desktop',
-    'lxqt': 'lxqt',
-    'mate': 'mate',
-    'cinnamon': 'cinnamon',
-    'budgie': 'budgie-desktop',
+# -----------------------------------------------------------------------------
+# Map XDG_CURRENT_DESKTOP to real Arch DE package names
+# -----------------------------------------------------------------------------
+DE_MAP = {
+    'xfce':        'xfce4',
+    'gnome':       'gnome',
+    'kde':         'plasma-desktop',
+    'deepin':      'deepin',
+    'lxqt':        'lxqt',
+    'mate':        'mate',
+    'cinnamon':    'cinnamon',
+    'budgie':      'budgie-desktop',
 }
 
-# ----------------------- Helpers -----------------------
+# -----------------------------------------------------------------------------
+# Helpers
+# -----------------------------------------------------------------------------
 def run(cmd, check=True, cwd=None):
+    """Run a command list, optionally in the background."""
     if check:
         subprocess.run(cmd, check=True, cwd=cwd)
     else:
         subprocess.Popen(cmd, cwd=cwd)
 
 def is_installed(pkg):
-    return subprocess.run(['pacman','-Qi',pkg],
-                         stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL).returncode == 0
+    """Return True if pacman -Qi <pkg> succeeds."""
+    return subprocess.run(
+        ['pacman', '-Qi', pkg],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    ).returncode == 0
 
 def detect_gpu():
+    """Return the correct GPU driver package name or None."""
     out = subprocess.check_output(
         "lspci -nn | grep -Ei 'VGA'", shell=True
     ).decode().lower()
@@ -115,65 +119,114 @@ def detect_gpu():
         return 'mesa'
     return None
 
-# Generate a random gradient wallpaper
-WALL_DIR = Path.home() / "Pictures" / "Wallpapers"
-WALL_DIR.mkdir(parents=True, exist_ok=True)
+def scan_wifi():
+    """Return a sorted list of SSIDs visible via nmcli."""
+    try:
+        raw = subprocess.check_output(
+            ['nmcli','-t','-f','SSID','dev','wifi']
+        ).decode().splitlines()
+        return sorted({s for s in raw if s})
+    except subprocess.CalledProcessError:
+        return []
 
-def generate_wallpaper(path: Path, size=(1920,1080)):
-    # create random two-color vertical gradient
-    base = Image.new('RGB', size)
-    draw = ImageDraw.Draw(base)
-    c1 = tuple(random.randint(0,255) for _ in range(3))
-    c2 = tuple(random.randint(0,255) for _ in range(3))
-    for y in range(size[1]):
-        ratio = y / size[1]
-        r = int(c1[0] * (1-ratio) + c2[0] * ratio)
-        g = int(c1[1] * (1-ratio) + c2[1] * ratio)
-        b = int(c1[2] * (1-ratio) + c2[2] * ratio)
-        draw.line([(0,y),(size[0],y)], fill=(r,g,b))
-    base.save(path)
-    return path
-
-# ----------------------- GUI -----------------------
+# -----------------------------------------------------------------------------
+# Installer GUI
+# -----------------------------------------------------------------------------
 class InstallerGUI(Gtk.Window):
     def __init__(self):
         super().__init__(title="RustPy-Arch Installer")
-        self.set_default_size(700, 500)
+        self.set_default_size(600, 480)
         self.set_border_width(12)
 
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         self.add(vbox)
 
-        # Notebook for pages
         self.nb = Gtk.Notebook()
         vbox.pack_start(self.nb, True, True, 0)
         self._build_network_page()
         self._build_disk_page()
         self._build_components_page()
         self._build_graphics_page()
-        self._build_theme_page()
 
-        # Start button
-        btn = Gtk.Button(label="Start Installation")
-        btn.connect("clicked", lambda w: self.on_start())
-        vbox.pack_start(btn, False, False, 0)
+        btn_start = Gtk.Button(label="Start Installation")
+        btn_start.connect("clicked", lambda w: self.on_start())
+        vbox.pack_start(btn_start, False, False, 0)
 
         self.show_all()
 
+    # -- Network Page ---------------------------------------------------------
     def _build_network_page(self):
-        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.nb.append_page(page, Gtk.Label(label="Network"))
-        # Mirror + Wi-Fi scanning omitted for brevity
-        # ...
 
+        btn_mirror = Gtk.Button(label="Refresh Mirrors")
+        btn_mirror.connect("clicked", lambda w: self._refresh_mirrors())
+        page.pack_start(btn_mirror, False, False, 0)
+
+        page.pack_start(Gtk.Label(label="Available Wi‑Fi Networks:"), False, False, 0)
+        self.cb_ssid = Gtk.ComboBoxText()
+        page.pack_start(self.cb_ssid, False, False, 0)
+        self._refresh_ssids()
+
+        self.ent_pwd = Gtk.Entry()
+        self.ent_pwd.set_visibility(False)
+        self.ent_pwd.set_placeholder_text("Password (if required)")
+        page.pack_start(self.ent_pwd, False, False, 0)
+
+        btn_conn = Gtk.Button(label="Connect")
+        btn_conn.connect("clicked", lambda w: self._connect_wifi())
+        page.pack_start(btn_conn, False, False, 0)
+
+    def _refresh_mirrors(self):
+        try:
+            run([
+                "reflector","--country","US","--latest","5",
+                "--sort","rate","--save","/etc/pacman.d/mirrorlist"
+            ])
+            self._message("Mirrorlist refreshed")
+        except Exception as e:
+            self._message(f"Failed to refresh mirrors: {e}")
+
+    def _refresh_ssids(self):
+        ssids = scan_wifi()
+        self.cb_ssid.remove_all()
+        for s in ssids:
+            self.cb_ssid.append_text(s)
+        if ssids:
+            self.cb_ssid.set_active(0)
+
+    def _connect_wifi(self):
+        ssid = self.cb_ssid.get_active_text()
+        pwd  = self.ent_pwd.get_text().strip()
+        if not ssid:
+            return self._message("Please select a network first.")
+        cmd = ['nmcli','dev','wifi','connect',ssid]
+        if pwd:
+            cmd += ['password', pwd]
+        try:
+            run(cmd)
+            self._message(f"Connected to {ssid}")
+        except Exception as e:
+            self._message(f"Failed to connect: {e}")
+
+    # -- Disk Page -----------------------------------------------------------
     def _build_disk_page(self):
-        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.nb.append_page(page, Gtk.Label(label="Disk Layout"))
-        # Disk partition size spinners
-        # ...
+        # TODO: implement partition preview and selection
+        self.spin_root = Gtk.SpinButton.new_with_range(10,500,5)
+        self.spin_home = Gtk.SpinButton.new_with_range(10,500,5)
+        self.spin_var  = Gtk.SpinButton.new_with_range(5,200,5)
+        page.pack_start(Gtk.Label(label="Root size (GB):"), False, False, 0)
+        page.pack_start(self.spin_root, False, False, 0)
+        page.pack_start(Gtk.Label(label="Home size (GB):"), False, False, 0)
+        page.pack_start(self.spin_home, False, False, 0)
+        page.pack_start(Gtk.Label(label="Var size (GB):"), False, False, 0)
+        page.pack_start(self.spin_var, False, False, 0)
 
+    # -- Components Page ------------------------------------------------------
     def _build_components_page(self):
-        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.nb.append_page(page, Gtk.Label(label="Components"))
         self.ck = {}
         comps = {
@@ -190,93 +243,96 @@ class InstallerGUI(Gtk.Window):
             cb = Gtk.CheckButton(label=label)
             if is_installed(pkg):
                 cb.set_sensitive(False)
-                cb.set_label(f"{label} (already installed)")
+                cb.set_label(f"{label} (installed)")
             self.ck[pkg] = cb
             page.pack_start(cb, False, False, 0)
 
+    # -- Graphics Page --------------------------------------------------------
     def _build_graphics_page(self):
-        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.nb.append_page(page, Gtk.Label(label="Graphics"))
         gpu = detect_gpu()
-        self.cb_gpu = Gtk.CheckButton(
-            label=(f"Install {gpu} driver" if gpu else "No GPU detected")
-        )
-        if not gpu: self.cb_gpu.set_sensitive(False)
+        text = f"Install {gpu} driver" if gpu else "No GPU detected"
+        self.cb_gpu = Gtk.CheckButton(label=text)
+        if not gpu:
+            self.cb_gpu.set_sensitive(False)
         page.pack_start(self.cb_gpu, False, False, 0)
 
-    def _build_theme_page(self):
-        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        self.nb.append_page(page, Gtk.Label(label="Theme"))
-
-        lbl = Gtk.Label(label="Generate random wallpaper and icon theme?")
-        page.pack_start(lbl, False, False, 0)
-        btn = Gtk.Button(label="Preview & Generate")
-        btn.connect("clicked", lambda w: self._on_generate_theme())
-        page.pack_start(btn, False, False, 0)
-        self.theme_path = None
-
-    def _on_generate_theme(self):
-        # Create a random wallpaper
-        fname = WALL_DIR / f"rustpy_wall_{random.randint(1,9999)}.png"
-        path = generate_wallpaper(fname)
-        self.theme_path = path
-        self._message(f"Wallpaper generated at {path}")
-
+    # -- Start Installation --------------------------------------------------
     def on_start(self):
-        base_dir = Path(__file__).parent
-        # 1) gather components
-        selected = [p for p,cb in self.ck.items() if cb.get_active()]
-        if self.cb_gpu.get_active():
-            g = detect_gpu()
-            if g: selected.append(g)
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # 1) collect selections
+        selected = [p for p,cb in self.ck.items() if cb.get_active() and cb.get_sensitive()]
+        if self.cb_gpu.get_active() and detect_gpu():
+            selected.append(detect_gpu())
+        official  = [p for p in selected if not p.startswith('rustpy-')]
+        local_meta = [p for p in selected if p.startswith('rustpy-')]
+
         # 2) install official
-        official = [p for p in selected if not p.startswith('rustpy-')]
         if official:
-            run(['pacman','-Sy','--noconfirm'] + official)
-        # 3) build/generate rustpy meta-pkgs
-        raw_de = os.getenv('XDG_CURRENT_DESKTOP','').split(':')[0].lower()
-        de_dep = de_map.get(raw_de, 'base')
-        for meta in (m for m in selected if m.startswith('rustpy-')):
-            d = base_dir / meta
-            if not d.exists():
-                d.mkdir()
-                skeleton = f"""
-pkgname={meta}
+            self._message("Installing: " + ", ".join(official))
+            try:
+                run(['pacman','-Sy','--noconfirm'] + official)
+            except Exception as e:
+                self._message(f"pacman failed: {e}")
+
+        # 3) build/generate meta-packages
+        raw_de = os.environ.get('XDG_CURRENT_DESKTOP','').split(':')[0].lower()
+        de_dep = DE_MAP.get(raw_de, 'base')
+        for meta in local_meta:
+            d = os.path.join(base_dir, meta)
+            if not os.path.isdir(d):
+                os.makedirs(d, exist_ok=True)
+                skeleton = f"""pkgname={meta}
 pkgver=1.0.0
 pkgrel=1
 pkgdesc="RustPy-Arch meta-package: {meta}"
 arch=('x86_64')
 license=('MIT')
-depends=('"{de_dep}"')
+depends=('{de_dep}')
 source=()
 sha256sums=('SKIP')
 
 package() {{
-  :
+  :  # meta only
 }}
 """
-                (d / 'PKGBUILD').write_text(skeleton)
-            run(['makepkg','-si','--noconfirm'], cwd=str(d))
-        # 4) apply theme
-        if self.theme_path:
-            # set as desktop background via feh
-            run(['feh','--bg-scale', str(self.theme_path)])
-        # 5) finalize
-        run(['bash', str(base_dir/'rustpy-arch-bootstrap.sh')], check=False)
+                with open(os.path.join(d, 'PKGBUILD'), 'w') as fd:
+                    fd.write(skeleton)
+                self._message(f"Generated PKGBUILD for {meta} (depends on {de_dep})")
+            self._message(f"Building {meta}…")
+            try:
+                run(['makepkg','-si','--noconfirm'], cwd=d)
+            except Exception as e:
+                self._message(f"makepkg failed: {e}")
+
+        # 4) launch bootstrap
+        boot = os.path.join(base_dir, 'rustpy-arch-bootstrap.sh')
+        if not os.path.isfile(boot):
+            return self._message("Bootstrap script missing!")
+        self._message("Launching full bootstrap in background…")
+        run(['bash', boot], check=False)
+
         Gtk.main_quit()
 
-    def _message(self, txt):
+    # -- Dialog Helper --------------------------------------------------------
+    def _message(self, text):
         dlg = Gtk.MessageDialog(
             transient_for=self,
             flags=0,
             message_type=Gtk.MessageType.INFO,
             buttons=Gtk.ButtonsType.OK,
-            text=txt
+            text=text
         )
-        dlg.run(); dlg.destroy()
+        dlg.run()
+        dlg.destroy()
 
-if __name__ == '__main__':
-    InstallerGUI().connect('destroy', Gtk.main_quit)
+# -----------------------------------------------------------------------------
+if __name__ == "__main__":
+    win = InstallerGUI()
+    win.connect("destroy", Gtk.main_quit)
     Gtk.main()
+
 
 ~~~
