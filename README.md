@@ -66,6 +66,7 @@ rustpy-arch/
 
 ## 1. `rustpy-arch-bootstrap.sh`
 ~~~
+
 #!/usr/bin/env python3
 import os
 import subprocess
@@ -89,6 +90,16 @@ DE_MAP = {
 }
 
 # -----------------------------------------------------------------------------
+# Category tool lists
+# -----------------------------------------------------------------------------
+CATEGORY_TOOLS = {
+    'rustpy-dev': ['base-devel','git','docker','neovim','code','cmake','python','nodejs'],
+    'rustpy-office': ['libreoffice-fresh','evince','cups','hplip','thunderbird'],
+    'rustpy-gaming': ['steam','wine','vulkan-intel','lib32-vulkan-intel','dxvk-bin'],
+    'rustpy-multimedia': ['vlc','gimp','ffmpeg','audacity','inkscape'],
+}
+
+# -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
 def run(cmd, check=True, cwd=None):
@@ -98,12 +109,14 @@ def run(cmd, check=True, cwd=None):
     else:
         subprocess.Popen(cmd, cwd=cwd)
 
+
 def is_installed(pkg):
     """Return True if pacman -Qi <pkg> succeeds."""
     return subprocess.run(
         ['pacman', '-Qi', pkg],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     ).returncode == 0
+
 
 def detect_gpu():
     """Return the correct GPU driver package name or None."""
@@ -117,6 +130,7 @@ def detect_gpu():
     if 'intel' in out:
         return 'mesa'
     return None
+
 
 def scan_wifi():
     """Return a sorted list of SSIDs visible via nmcli."""
@@ -228,13 +242,13 @@ class InstallerGUI(Gtk.Window):
         self.nb.append_page(page, Gtk.Label(label="Components"))
         self.ck = {}
         comps = {
-            'rust':             'Rust compiler',
-            'git':              'Git',
-            'base':             'Base system',
-            'rustpy-de-core':   'RustPyDE desktop',
-            'rustpy-gaming':    'Gaming profile',
-            'rustpy-office':    'Office profile',
-            'rustpy-dev':       'Development tools',
+            'rust':            'Rust compiler',
+            'git':             'Git',
+            'base':            'Base system',
+            'rustpy-de-core':  'RustPyDE desktop',
+            'rustpy-gaming':   'Gaming profile',
+            'rustpy-office':   'Office profile',
+            'rustpy-dev':      'Development tools',
             'rustpy-multimedia':'Multimedia suite',
         }
         for pkg,label in comps.items():
@@ -256,6 +270,30 @@ class InstallerGUI(Gtk.Window):
             self.cb_gpu.set_sensitive(False)
         page.pack_start(self.cb_gpu, False, False, 0)
 
+    # -- Tool Selection Dialog ------------------------------------------------
+    def _ask_tools(self, title, tools):
+        dlg = Gtk.Dialog(title=title, transient_for=self, flags=0)
+        dlg.add_button(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL)
+        dlg.add_button("Install Selected", Gtk.ResponseType.OK)
+        box = dlg.get_content_area()
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        box.add(vbox)
+        select_all = Gtk.CheckButton(label="Select All")
+        def on_select_all(w):
+            for cb in tool_cbs.values(): cb.set_active(w.get_active())
+        select_all.connect("toggled", on_select_all)
+        vbox.pack_start(select_all, False, False, 0)
+        tool_cbs = {}
+        for pkg in tools:
+            cb = Gtk.CheckButton(label=pkg)
+            vbox.pack_start(cb, False, False, 0)
+            tool_cbs[pkg] = cb
+        dlg.show_all()
+        resp = dlg.run()
+        chosen = [pkg for pkg, cb in tool_cbs.items() if cb.get_active()] if resp == Gtk.ResponseType.OK else []
+        dlg.destroy()
+        return chosen
+
     # -- Start Installation --------------------------------------------------
     def on_start(self):
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -266,6 +304,22 @@ class InstallerGUI(Gtk.Window):
         official  = [p for p in selected if not p.startswith('rustpy-')]
         local_meta = [p for p in selected if p.startswith('rustpy-')]
 
+        # profile suggestion based on GPU
+        gpu = detect_gpu()
+        if gpu == 'nvidia' and 'rustpy-gaming' not in selected:
+            if Gtk.ResponseType.OK == Gtk.MessageDialog(self,0,Gtk.MessageType.QUESTION,Gtk.ButtonsType.OK_CANCEL,
+                    "NVIDIA GPU detected—would you like to enable Gaming profile?").run():
+                official.append(gpu)  # or mark gaming
+        
+        # per-category tool selection
+        for meta in list(local_meta):
+            tools = CATEGORY_TOOLS.get(meta, [])
+            if tools:
+                label = f"Select tools for {self.ck[meta].get_label()}"
+                chosen = self._ask_tools(label, tools)
+                official.extend(chosen)
+
+        # install official packages
         if official:
             self._message("Installing: " + ", ".join(official))
             try:
@@ -273,7 +327,7 @@ class InstallerGUI(Gtk.Window):
             except Exception as e:
                 self._message(f"pacman failed: {e}")
 
-        # build/generate meta-packages
+        # build/generate local meta-packages
         raw_de = os.environ.get('XDG_CURRENT_DESKTOP','').split(':')[0].lower()
         de_dep = DE_MAP.get(raw_de, 'base')
         for meta in local_meta:
@@ -287,7 +341,7 @@ pkgrel=1
 pkgdesc="RustPy-Arch meta-package: {meta}"
 arch=('x86_64')
 license=('MIT')
-depends=('{de_dep}')
+depends=('" + de_dep + "')
 source=()
 sha256sums=('SKIP')
 
@@ -304,10 +358,11 @@ package() {{
             except Exception as e:
                 self._message(f"makepkg failed: {e}")
 
+        # launch bootstrap
         boot = os.path.join(base_dir, 'rustpy-arch-bootstrap.sh')
         if not os.path.isfile(boot):
             return self._message("Bootstrap script missing!")
-        self._message("Launching full bootstrap in background…")
+        self._message("Launching full bootstrap…")
         run(['bash', boot], check=False)
 
         Gtk.main_quit()
@@ -329,6 +384,7 @@ if __name__ == "__main__":
     win = InstallerGUI()
     win.connect("destroy", Gtk.main_quit)
     Gtk.main()
+
 
 
 
