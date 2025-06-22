@@ -93,10 +93,10 @@ DE_MAP = {
 # Category tool lists
 # -----------------------------------------------------------------------------
 CATEGORY_TOOLS = {
-    'rustpy-dev': ['base-devel','git','docker','neovim','code','cmake','python','nodejs'],
-    'rustpy-office': ['libreoffice-fresh','evince','cups','hplip','thunderbird'],
-    'rustpy-gaming': ['steam','wine','vulkan-intel','lib32-vulkan-intel','dxvk-bin'],
-    'rustpy-multimedia': ['vlc','gimp','ffmpeg','audacity','inkscape'],
+    'rustpy-dev':       ['base-devel', 'git', 'docker', 'neovim', 'code', 'cmake', 'python', 'nodejs'],
+    'rustpy-office':    ['libreoffice-fresh', 'evince', 'cups', 'hplip', 'thunderbird'],
+    'rustpy-gaming':    ['steam', 'wine', 'vulkan-intel', 'lib32-vulkan-intel', 'dxvk-bin'],
+    'rustpy-multimedia':['vlc', 'gimp', 'ffmpeg', 'audacity', 'inkscape'],
 }
 
 # -----------------------------------------------------------------------------
@@ -109,7 +109,6 @@ def run(cmd, check=True, cwd=None):
     else:
         subprocess.Popen(cmd, cwd=cwd)
 
-
 def is_installed(pkg):
     """Return True if pacman -Qi <pkg> succeeds."""
     return subprocess.run(
@@ -117,20 +116,15 @@ def is_installed(pkg):
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     ).returncode == 0
 
-
 def detect_gpu():
     """Return the correct GPU driver package name or None."""
     out = subprocess.check_output(
         "lspci -nn | grep -Ei 'VGA'", shell=True
     ).decode().lower()
-    if 'nvidia' in out:
-        return 'nvidia'
-    if 'amd' in out:
-        return 'xf86-video-amdgpu'
-    if 'intel' in out:
-        return 'mesa'
+    if 'nvidia' in out: return 'nvidia'
+    if 'amd'    in out: return 'xf86-video-amdgpu'
+    if 'intel'  in out: return 'mesa'
     return None
-
 
 def scan_wifi():
     """Return a sorted list of SSIDs visible via nmcli."""
@@ -156,6 +150,7 @@ class InstallerGUI(Gtk.Window):
 
         self.nb = Gtk.Notebook()
         vbox.pack_start(self.nb, True, True, 0)
+
         self._build_network_page()
         self._build_disk_page()
         self._build_components_page()
@@ -176,7 +171,7 @@ class InstallerGUI(Gtk.Window):
         btn_mirror.connect("clicked", lambda w: self._refresh_mirrors())
         page.pack_start(btn_mirror, False, False, 0)
 
-        page.pack_start(Gtk.Label(label="Available Wi‑Fi Networks:"), False, False, 0)
+        page.pack_start(Gtk.Label(label="Available Wi-Fi Networks:"), False, False, 0)
         self.cb_ssid = Gtk.ComboBoxText()
         page.pack_start(self.cb_ssid, False, False, 0)
         self._refresh_ssids()
@@ -201,11 +196,10 @@ class InstallerGUI(Gtk.Window):
             self._message(f"Failed to refresh mirrors: {e}")
 
     def _refresh_ssids(self):
-        ssids = scan_wifi()
         self.cb_ssid.remove_all()
-        for s in ssids:
+        for s in scan_wifi():
             self.cb_ssid.append_text(s)
-        if ssids:
+        if self.cb_ssid.get_row_count() > 0:
             self.cb_ssid.set_active(0)
 
     def _connect_wifi(self):
@@ -213,7 +207,7 @@ class InstallerGUI(Gtk.Window):
         pwd  = self.ent_pwd.get_text().strip()
         if not ssid:
             return self._message("Please select a network first.")
-        cmd = ['nmcli','dev','wifi','connect',ssid]
+        cmd = ['nmcli','dev','wifi','connect', ssid]
         if pwd:
             cmd += ['password', pwd]
         try:
@@ -222,24 +216,26 @@ class InstallerGUI(Gtk.Window):
         except Exception as e:
             self._message(f"Failed to connect: {e}")
 
-    # -- Disk Page -----------------------------------------------------------
+    # -- Disk Page ------------------------------------------------------------
     def _build_disk_page(self):
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.nb.append_page(page, Gtk.Label(label="Disk"))
         self.spin_root = Gtk.SpinButton.new_with_range(10,500,5)
         self.spin_home = Gtk.SpinButton.new_with_range(10,500,5)
         self.spin_var  = Gtk.SpinButton.new_with_range(5,200,5)
-        page.pack_start(Gtk.Label(label="Root size (GB):"), False, False, 0)
-        page.pack_start(self.spin_root, False, False, 0)
-        page.pack_start(Gtk.Label(label="Home size (GB):"), False, False, 0)
-        page.pack_start(self.spin_home, False, False, 0)
-        page.pack_start(Gtk.Label(label="Var size (GB):"), False, False, 0)
-        page.pack_start(self.spin_var, False, False, 0)
+        for label, spin in [
+            ("Root size (GB):", self.spin_root),
+            ("Home size (GB):", self.spin_home),
+            ("Var size (GB):", self.spin_var),
+        ]:
+            page.pack_start(Gtk.Label(label=label), False, False, 0)
+            page.pack_start(spin, False, False, 0)
 
     # -- Components Page ------------------------------------------------------
     def _build_components_page(self):
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.nb.append_page(page, Gtk.Label(label="Components"))
+
         self.ck = {}
         comps = {
             'rust':            'Rust compiler',
@@ -251,7 +247,7 @@ class InstallerGUI(Gtk.Window):
             'rustpy-dev':      'Development tools',
             'rustpy-multimedia':'Multimedia suite',
         }
-        for pkg,label in comps.items():
+        for pkg, label in comps.items():
             cb = Gtk.CheckButton(label=label)
             if is_installed(pkg):
                 cb.set_sensitive(False)
@@ -263,6 +259,7 @@ class InstallerGUI(Gtk.Window):
     def _build_graphics_page(self):
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.nb.append_page(page, Gtk.Label(label="Graphics"))
+
         gpu = detect_gpu()
         text = f"Install {gpu} driver" if gpu else "No GPU detected"
         self.cb_gpu = Gtk.CheckButton(label=text)
@@ -278,19 +275,25 @@ class InstallerGUI(Gtk.Window):
         box = dlg.get_content_area()
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         box.add(vbox)
+
         select_all = Gtk.CheckButton(label="Select All")
+        tool_cbs = {}
         def on_select_all(w):
-            for cb in tool_cbs.values(): cb.set_active(w.get_active())
+            for cb in tool_cbs.values():
+                cb.set_active(w.get_active())
         select_all.connect("toggled", on_select_all)
         vbox.pack_start(select_all, False, False, 0)
-        tool_cbs = {}
+
         for pkg in tools:
             cb = Gtk.CheckButton(label=pkg)
             vbox.pack_start(cb, False, False, 0)
             tool_cbs[pkg] = cb
+
         dlg.show_all()
         resp = dlg.run()
-        chosen = [pkg for pkg, cb in tool_cbs.items() if cb.get_active()] if resp == Gtk.ResponseType.OK else []
+        chosen = []
+        if resp == Gtk.ResponseType.OK:
+            chosen = [pkg for pkg, cb in tool_cbs.items() if cb.get_active()]
         dlg.destroy()
         return chosen
 
@@ -298,24 +301,32 @@ class InstallerGUI(Gtk.Window):
     def on_start(self):
         base_dir = os.path.dirname(os.path.abspath(__file__))
 
-        selected = [p for p,cb in self.ck.items() if cb.get_active() and cb.get_sensitive()]
+        # collect top-level selections
+        selected = [p for p, cb in self.ck.items() if cb.get_active() and cb.get_sensitive()]
         if self.cb_gpu.get_active() and detect_gpu():
             selected.append(detect_gpu())
-        official  = [p for p in selected if not p.startswith('rustpy-')]
+
+        official   = [p for p in selected if not p.startswith('rustpy-')]
         local_meta = [p for p in selected if p.startswith('rustpy-')]
 
-        # profile suggestion based on GPU
+        # suggest gaming profile on NVIDIA
         gpu = detect_gpu()
         if gpu == 'nvidia' and 'rustpy-gaming' not in selected:
-            if Gtk.ResponseType.OK == Gtk.MessageDialog(self,0,Gtk.MessageType.QUESTION,Gtk.ButtonsType.OK_CANCEL,
-                    "NVIDIA GPU detected—would you like to enable Gaming profile?").run():
-                official.append(gpu)  # or mark gaming
-        
+            dlg = Gtk.MessageDialog(
+                transient_for=self, flags=0,
+                message_type=Gtk.MessageType.QUESTION,
+                buttons=Gtk.ButtonsType.OK_CANCEL,
+                text="NVIDIA GPU detected — enable Gaming profile?"
+            )
+            if dlg.run() == Gtk.ResponseType.OK:
+                local_meta.append('rustpy-gaming')
+            dlg.destroy()
+
         # per-category tool selection
         for meta in list(local_meta):
             tools = CATEGORY_TOOLS.get(meta, [])
             if tools:
-                label = f"Select tools for {self.ck[meta].get_label()}"
+                label = f"Select tools for {self.ck[meta].get_label()}:"
                 chosen = self._ask_tools(label, tools)
                 official.extend(chosen)
 
@@ -323,7 +334,7 @@ class InstallerGUI(Gtk.Window):
         if official:
             self._message("Installing: " + ", ".join(official))
             try:
-                run(['pacman','-Sy','--noconfirm'] + official)
+                run(['pacman', '-Sy', '--noconfirm'] + official)
             except Exception as e:
                 self._message(f"pacman failed: {e}")
 
@@ -341,7 +352,7 @@ pkgrel=1
 pkgdesc="RustPy-Arch meta-package: {meta}"
 arch=('x86_64')
 license=('MIT')
-depends=('" + de_dep + "')
+depends=('{de_dep}')
 source=()
 sha256sums=('SKIP')
 
@@ -358,11 +369,11 @@ package() {{
             except Exception as e:
                 self._message(f"makepkg failed: {e}")
 
-        # launch bootstrap
+        # finally, kick off the shell bootstrap
         boot = os.path.join(base_dir, 'rustpy-arch-bootstrap.sh')
         if not os.path.isfile(boot):
             return self._message("Bootstrap script missing!")
-        self._message("Launching full bootstrap…")
+        self._message("Launching full bootstrap in background…")
         run(['bash', boot], check=False)
 
         Gtk.main_quit()
@@ -370,8 +381,7 @@ package() {{
     # -- Dialog Helper --------------------------------------------------------
     def _message(self, text):
         dlg = Gtk.MessageDialog(
-            transient_for=self,
-            flags=0,
+            transient_for=self, flags=0,
             message_type=Gtk.MessageType.INFO,
             buttons=Gtk.ButtonsType.OK,
             text=text
@@ -384,8 +394,6 @@ if __name__ == "__main__":
     win = InstallerGUI()
     win.connect("destroy", Gtk.main_quit)
     Gtk.main()
-
-
 
 
 ~~~
