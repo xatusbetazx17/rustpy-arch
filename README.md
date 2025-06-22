@@ -145,24 +145,20 @@ class InstallerGUI(Gtk.Window):
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.nb.append_page(page, Gtk.Label(label="Network"))
 
-        # Mirror refresh
         btn_mirror = Gtk.Button(label="Refresh Mirrors")
         btn_mirror.connect("clicked", lambda w: self._refresh_mirrors())
         page.pack_start(btn_mirror, False, False, 0)
 
-        # Wi-Fi SSIDs
         page.pack_start(Gtk.Label(label="Available Wi-Fi Networks:"), False, False, 0)
         self.cb_ssid = Gtk.ComboBoxText()
         page.pack_start(self.cb_ssid, False, False, 0)
         self._refresh_ssids()
 
-        # Password entry
         self.ent_pwd = Gtk.Entry()
         self.ent_pwd.set_visibility(False)
         self.ent_pwd.set_placeholder_text("Password (if required)")
         page.pack_start(self.ent_pwd, False, False, 0)
 
-        # Connect button
         btn_conn = Gtk.Button(label="Connect")
         btn_conn.connect("clicked", lambda w: self._connect_wifi())
         page.pack_start(btn_conn, False, False, 0)
@@ -182,7 +178,6 @@ class InstallerGUI(Gtk.Window):
         self.cb_ssid.remove_all()
         for s in ssids:
             self.cb_ssid.append_text(s)
-        # correctly check model child count:
         model = self.cb_ssid.get_model()
         if model and model.iter_n_children(None) > 0:
             self.cb_ssid.set_active(0)
@@ -253,28 +248,45 @@ class InstallerGUI(Gtk.Window):
     def on_start(self):
         base_dir = os.path.dirname(os.path.abspath(__file__))
 
-        # collect selections
+        # 1) collect selections
         selected = [p for p, cb in self.ck.items() if cb.get_active() and cb.get_sensitive()]
         if self.cb_gpu.get_active() and detect_gpu():
             selected.append(detect_gpu())
 
+        # 2) map your current DE to the proper Arch package group
+        raw_de = os.environ.get('XDG_CURRENT_DESKTOP','').split(':')[0].lower()
+        DE_MAP = {
+            'xfce':     'xfce4',
+            'gnome':    'gnome',
+            'kde':      'plasma-desktop',
+            'deepin':   'deepin',
+            'lxqt':     'lxqt',
+            'mate':     'mate',
+            'cinnamon': 'cinnamon',
+            'budgie':   'budgie-desktop',
+        }
+        de_pkg = DE_MAP.get(raw_de)
+        if de_pkg and de_pkg not in selected:
+            selected.append(de_pkg)
+
+        # 3) split official vs local meta
         official   = [p for p in selected if not p.startswith('rustpy-')]
         local_meta = [p for p in selected if p.startswith('rustpy-')]
 
-        # install official packages
+        # 4) install official packages
         if official:
             self._message("Installing: " + ", ".join(official))
             try:
-                run(['pacman', '-Sy', '--noconfirm'] + official)
+                run(['pacman','-Sy','--noconfirm'] + official)
             except Exception as e:
                 self._message(f"pacman error: {e}")
 
-        # generate & build meta-packages
-        de = os.environ.get('XDG_CURRENT_DESKTOP', 'generic').lower().split(':')[0]
+        # 5) generate & build any missing meta-packages
         for meta in local_meta:
             d = os.path.join(base_dir, meta)
             if not os.path.isdir(d):
                 os.makedirs(d, exist_ok=True)
+                dep = raw_de or 'base'
                 skeleton = f"""\
 pkgname={meta}
 pkgver=1.0.0
@@ -282,7 +294,7 @@ pkgrel=1
 pkgdesc="RustPy-Arch meta-package: {meta}"
 arch=('x86_64')
 license=('MIT')
-depends=('{de}')
+depends=('{dep}')
 source=()
 sha256sums=('SKIP')
 
@@ -290,16 +302,15 @@ package() {{
   :  # meta only
 }}
 """
-                with open(os.path.join(d, 'PKGBUILD'), 'w') as fd:
-                    fd.write(skeleton)
-                self._message(f"Generated PKGBUILD for {meta} (depends on {de})")
+                open(os.path.join(d,'PKGBUILD'),'w').write(skeleton)
+                self._message(f"Generated PKGBUILD for {meta} (depends on {dep})")
             self._message(f"Building {meta}…")
             try:
                 run(['makepkg','-si','--noconfirm'], cwd=d)
             except Exception as e:
                 self._message(f"makepkg failed: {e}")
 
-        # launch bootstrap
+        # 6) finally, hand off to your full bootstrap
         boot = os.path.join(base_dir, 'rustpy-arch-bootstrap.sh')
         if not os.path.isfile(boot):
             return self._message("Bootstrap script missing!")
