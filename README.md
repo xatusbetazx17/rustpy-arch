@@ -69,8 +69,24 @@ rustpy-arch/
 #!/usr/bin/env python3
 import os
 import subprocess
+import gi
+# Must call require_version before importing Gtk
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk
+from gi.repository import Gtk, GObject
+
+# -----------------------------------------------------------------------------
+# Map XDG_CURRENT_DESKTOP to real Arch DE package names
+# -----------------------------------------------------------------------------
+DE_MAP = {
+    'xfce':        'xfce4',
+    'gnome':       'gnome',
+    'kde':         'plasma-desktop',
+    'deepin':      'deepin',
+    'lxqt':        'lxqt',
+    'mate':        'mate',
+    'cinnamon':    'cinnamon',
+    'budgie':      'budgie-desktop',
+}
 
 # -----------------------------------------------------------------------------
 # Helpers
@@ -162,8 +178,10 @@ class InstallerGUI(Gtk.Window):
 
     def _refresh_mirrors(self):
         try:
-            run(["reflector","--country","US","--latest","5","--sort","rate",
-                 "--save","/etc/pacman.d/mirrorlist"])
+            run([
+                "reflector","--country","US","--latest","5",
+                "--sort","rate","--save","/etc/pacman.d/mirrorlist"
+            ])
             self._message("Mirrorlist refreshed")
         except Exception as e:
             self._message(f"Failed to refresh mirrors: {e}")
@@ -210,13 +228,13 @@ class InstallerGUI(Gtk.Window):
         self.nb.append_page(page, Gtk.Label(label="Components"))
         self.ck = {}
         comps = {
-            'rust':            'Rust compiler',
-            'git':             'Git',
-            'base':            'Base system',
-            'rustpy-de-core':  'RustPyDE desktop',
-            'rustpy-gaming':   'Gaming profile',
-            'rustpy-office':   'Office profile',
-            'rustpy-dev':      'Development tools',
+            'rust':             'Rust compiler',
+            'git':              'Git',
+            'base':             'Base system',
+            'rustpy-de-core':   'RustPyDE desktop',
+            'rustpy-gaming':    'Gaming profile',
+            'rustpy-office':    'Office profile',
+            'rustpy-dev':       'Development tools',
             'rustpy-multimedia':'Multimedia suite',
         }
         for pkg,label in comps.items():
@@ -242,14 +260,12 @@ class InstallerGUI(Gtk.Window):
     def on_start(self):
         base_dir = os.path.dirname(os.path.abspath(__file__))
 
-        # 1) collect selections
         selected = [p for p,cb in self.ck.items() if cb.get_active() and cb.get_sensitive()]
         if self.cb_gpu.get_active() and detect_gpu():
             selected.append(detect_gpu())
         official  = [p for p in selected if not p.startswith('rustpy-')]
         local_meta = [p for p in selected if p.startswith('rustpy-')]
 
-        # 2) install official
         if official:
             self._message("Installing: " + ", ".join(official))
             try:
@@ -257,20 +273,21 @@ class InstallerGUI(Gtk.Window):
             except Exception as e:
                 self._message(f"pacman failed: {e}")
 
-        # 3) build/generate meta-packages
+        # build/generate meta-packages
+        raw_de = os.environ.get('XDG_CURRENT_DESKTOP','').split(':')[0].lower()
+        de_dep = DE_MAP.get(raw_de, 'base')
         for meta in local_meta:
             d = os.path.join(base_dir, meta)
             if not os.path.isdir(d):
                 os.makedirs(d, exist_ok=True)
-                dep = os.environ.get('XDG_CURRENT_DESKTOP','generic').lower() or 'base'
                 skeleton = f"""\
 pkgname={meta}
 pkgver=1.0.0
 pkgrel=1
-pkgdesc="RustPy-Arch meta-package: {meta}"\n
+pkgdesc="RustPy-Arch meta-package: {meta}"
 arch=('x86_64')
 license=('MIT')
-depends=('" + dep + "')
+depends=('{de_dep}')
 source=()
 sha256sums=('SKIP')
 
@@ -278,21 +295,20 @@ package() {{
   :  # meta only
 }}
 """
-                with open(os.path.join(d,'PKGBUILD'),'w') as fd:
+                with open(os.path.join(d, 'PKGBUILD'), 'w') as fd:
                     fd.write(skeleton)
-                self._message(f"Generated PKGBUILD for {meta}")
+                self._message(f"Generated PKGBUILD for {meta} (depends on {de_dep})")
             self._message(f"Building {meta}…")
             try:
                 run(['makepkg','-si','--noconfirm'], cwd=d)
             except Exception as e:
                 self._message(f"makepkg failed: {e}")
 
-        # 4) launch bootstrap
-        boot = os.path.join(base_dir,'rustpy-arch-bootstrap.sh')
+        boot = os.path.join(base_dir, 'rustpy-arch-bootstrap.sh')
         if not os.path.isfile(boot):
             return self._message("Bootstrap script missing!")
         self._message("Launching full bootstrap in background…")
-        run(['bash',boot], check=False)
+        run(['bash', boot], check=False)
 
         Gtk.main_quit()
 
