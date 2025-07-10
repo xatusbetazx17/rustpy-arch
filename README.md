@@ -71,15 +71,19 @@ import os
 import subprocess
 import sys
 import gi
-
 # -----------------------------------------------------------------------------
 # Auto-install missing Python modules via pacman
 # -----------------------------------------------------------------------------
 def ensure_pkg(pkg_name):
-    """Ensure that a Python package (i.e. pacman -S) is installed."""
-    if subprocess.run(['pacman','-Qi', pkg_name],
-                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
-        subprocess.run(['sudo','pacman','-Sy','--noconfirm', pkg_name], check=True)
+    """Ensure that a pacman package is installed."""
+    if subprocess.run(
+        ['pacman','-Qi', pkg_name],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    ).returncode != 0:
+        subprocess.run(
+            ['sudo','pacman','-Sy','--noconfirm', pkg_name],
+            check=True
+        )
 
 # PIL (Pillow) for image generation
 try:
@@ -96,14 +100,14 @@ from gi.repository import Gtk
 # Map XDG_CURRENT_DESKTOP → Arch group names
 # -----------------------------------------------------------------------------
 DE_MAP = {
-    'xfce':        'xfce4',
-    'gnome':       'gnome',
-    'kde':         'plasma-desktop',
-    'deepin':      'deepin',
-    'lxqt':        'lxqt',
-    'mate':        'mate',
-    'cinnamon':    'cinnamon',
-    'budgie':      'budgie-desktop',
+    'xfce':     'xfce4',
+    'gnome':    'gnome',
+    'kde':      'plasma-desktop',
+    'deepin':   'deepin',
+    'lxqt':     'lxqt',
+    'mate':     'mate',
+    'cinnamon': 'cinnamon',
+    'budgie':   'budgie-desktop',
 }
 
 # -----------------------------------------------------------------------------
@@ -119,7 +123,7 @@ def run(cmd, check=True, cwd=None):
 def is_installed(pkg):
     """Return True if pacman -Qi <pkg> succeeds."""
     return subprocess.run(
-        ['pacman', '-Qi', pkg],
+        ['pacman','-Qi',pkg],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     ).returncode == 0
 
@@ -128,12 +132,9 @@ def detect_gpu():
     out = subprocess.check_output(
         "lspci -nn | grep -Ei 'VGA'", shell=True
     ).decode().lower()
-    if 'nvidia' in out:
-        return 'nvidia'
-    if 'amd' in out:
-        return 'xf86-video-amdgpu'
-    if 'intel' in out:
-        return 'mesa'
+    if 'nvidia' in out: return 'nvidia'
+    if 'amd'    in out: return 'xf86-video-amdgpu'
+    if 'intel'  in out: return 'mesa'
     return None
 
 def scan_wifi():
@@ -152,7 +153,7 @@ def scan_wifi():
 class InstallerGUI(Gtk.Window):
     def __init__(self):
         super().__init__(title="RustPy-Arch Installer")
-        self.set_default_size(700, 500)
+        self.set_default_size(800, 550)
         self.set_border_width(12)
 
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
@@ -165,6 +166,7 @@ class InstallerGUI(Gtk.Window):
         self._build_disk_page()
         self._build_components_page()
         self._build_graphics_page()
+        self._build_rustpy_page()      # <-- new!
 
         # Start button
         btn_start = Gtk.Button(label="Start Installation")
@@ -173,25 +175,22 @@ class InstallerGUI(Gtk.Window):
 
         self.show_all()
 
-    # -- Network Page ---------------------------------------------------------
+    # ----------------------------------------
+    # Network
+    # ----------------------------------------
     def _build_network_page(self):
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.nb.append_page(page, Gtk.Label(label="Network"))
-
         btn_mirror = Gtk.Button(label="Refresh Mirrors")
         btn_mirror.connect("clicked", lambda w: self._refresh_mirrors())
         page.pack_start(btn_mirror, False, False, 0)
-
         page.pack_start(Gtk.Label(label="Available Wi-Fi Networks:"), False, False, 0)
         self.cb_ssid = Gtk.ComboBoxText()
         page.pack_start(self.cb_ssid, False, False, 0)
         self._refresh_ssids()
-
-        self.ent_pwd = Gtk.Entry()
-        self.ent_pwd.set_visibility(False)
+        self.ent_pwd = Gtk.Entry(); self.ent_pwd.set_visibility(False)
         self.ent_pwd.set_placeholder_text("Password (if required)")
         page.pack_start(self.ent_pwd, False, False, 0)
-
         btn_conn = Gtk.Button(label="Connect")
         btn_conn.connect("clicked", lambda w: self._connect_wifi())
         page.pack_start(btn_conn, False, False, 0)
@@ -228,21 +227,26 @@ class InstallerGUI(Gtk.Window):
         except Exception as e:
             self._message(f"Failed to connect: {e}")
 
-    # -- Disk Page ------------------------------------------------------------
+    # ----------------------------------------
+    # Disk Layout
+    # ----------------------------------------
     def _build_disk_page(self):
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.nb.append_page(page, Gtk.Label(label="Disk Layout"))
         self.spin_root = Gtk.SpinButton.new_with_range(10,500,5)
         self.spin_home = Gtk.SpinButton.new_with_range(10,500,5)
         self.spin_var  = Gtk.SpinButton.new_with_range(5,200,5)
-        page.pack_start(Gtk.Label(label="Root size (GB):"), False, False, 0)
-        page.pack_start(self.spin_root, False, False, 0)
-        page.pack_start(Gtk.Label(label="Home size (GB):"), False, False, 0)
-        page.pack_start(self.spin_home, False, False, 0)
-        page.pack_start(Gtk.Label(label="Var size (GB):"), False, False, 0)
-        page.pack_start(self.spin_var, False, False, 0)
+        for lbl, spin in (
+            ("Root size (GB):", self.spin_root),
+            ("Home size (GB):", self.spin_home),
+            ("Var size (GB):",  self.spin_var),
+        ):
+            page.pack_start(Gtk.Label(label=lbl), False, False, 0)
+            page.pack_start(spin, False, False, 0)
 
-    # -- Components Page ------------------------------------------------------
+    # ----------------------------------------
+    # Components
+    # ----------------------------------------
     def _build_components_page(self):
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.nb.append_page(page, Gtk.Label(label="Components"))
@@ -265,18 +269,42 @@ class InstallerGUI(Gtk.Window):
             self.ck[pkg] = cb
             page.pack_start(cb, False, False, 0)
 
-    # -- Graphics Page --------------------------------------------------------
+    # ----------------------------------------
+    # Graphics
+    # ----------------------------------------
     def _build_graphics_page(self):
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.nb.append_page(page, Gtk.Label(label="Graphics"))
         gpu = detect_gpu()
-        text = f"Install {gpu} driver" if gpu else "No GPU detected"
-        self.cb_gpu = Gtk.CheckButton(label=text)
+        lbl = f"Install {gpu} driver" if gpu else "No GPU detected"
+        self.cb_gpu = Gtk.CheckButton(label=lbl)
         if not gpu:
             self.cb_gpu.set_sensitive(False)
         page.pack_start(self.cb_gpu, False, False, 0)
 
-    # -- Start Installation --------------------------------------------------
+    # ----------------------------------------
+    # Rust + Python Hybrid
+    # ----------------------------------------
+    def _build_rustpy_page(self):
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.nb.append_page(page, Gtk.Label(label="Rust + Python"))
+        # user-space replacements
+        self.cb_ripgrep     = Gtk.CheckButton(label="ripgrep (grep replacement)")
+        self.cb_exa         = Gtk.CheckButton(label="exa (ls replacement)")
+        self.cb_tar_rs      = Gtk.CheckButton(label="tar-rs (tar replacement)")
+        self.cb_systemd_rs  = Gtk.CheckButton(label="systemd-system-rs")
+        # Python runtime choices
+        self.cb_rustpython  = Gtk.CheckButton(label="RustPython")
+        self.cb_pyo3        = Gtk.CheckButton(label="PyO3 bindings")
+        for cb in (
+            self.cb_ripgrep, self.cb_exa, self.cb_tar_rs,
+            self.cb_systemd_rs, self.cb_rustpython, self.cb_pyo3
+        ):
+            page.pack_start(cb, False, False, 0)
+
+    # ----------------------------------------
+    # Start Installation
+    # ----------------------------------------
     def on_start(self):
         base_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -289,29 +317,40 @@ class InstallerGUI(Gtk.Window):
             if gpu:
                 selected.append(gpu)
 
-        # 3) DE mapping
+        # 3) detect and pull in your current DE
         raw_de = os.environ.get('XDG_CURRENT_DESKTOP','').split(':')[0].lower()
         de_pkg = DE_MAP.get(raw_de)
         if de_pkg and de_pkg not in selected:
             selected.append(de_pkg)
 
-        # 4) split official vs local
+        # 4) Rust + Python choices
+        rust_tools = []
+        if self.cb_ripgrep.get_active():    rust_tools.append('ripgrep')
+        if self.cb_exa.get_active():        rust_tools.append('exa')
+        if self.cb_tar_rs.get_active():     rust_tools.append('tar-rs')
+        if self.cb_systemd_rs.get_active(): rust_tools.append('systemd-system-rs')
+        if self.cb_rustpython.get_active(): rust_tools.append('rustpython')
+        if self.cb_pyo3.get_active():       rust_tools.append('python-pyo3')
+
+        # 5) split official vs local
         official   = [p for p in selected if not p.startswith('rustpy-')]
         local_meta = [p for p in selected if p.startswith('rustpy-')]
 
-        # 5) install official packages
-        if official:
-            self._message("Installing: " + ", ".join(official))
+        # 6) install official packages
+        if official or rust_tools:
+            to_install = official + rust_tools
+            self._message("Installing: " + ", ".join(to_install))
             try:
-                run(['sudo','pacman','-Sy','--noconfirm'] + official)
+                run(['sudo','pacman','-Sy','--noconfirm'] + to_install)
             except Exception as e:
                 self._message(f"pacman failed: {e}")
 
-        # 6) build / generate RustPyDE meta-packages
+        # 7) build / generate RustPyDE meta-packages
         for meta in local_meta:
             pkgdir = os.path.join(base_dir, meta)
             if not os.path.isdir(pkgdir):
                 os.makedirs(pkgdir, exist_ok=True)
+                depends = de_pkg or 'base'
                 skeleton = f"""\
 pkgname={meta}
 pkgver=1.0.0
@@ -319,7 +358,7 @@ pkgrel=1
 pkgdesc="RustPy-Arch meta-package: {meta}"
 arch=('x86_64')
 license=('MIT')
-depends=('{de_pkg or "base"}')
+depends=('{depends}')
 source=()
 sha256sums=('SKIP')
 
@@ -336,7 +375,7 @@ package() {{
             except Exception as e:
                 self._message(f"makepkg failed: {e}")
 
-        # 7) launch your full bootstrap
+        # 8) launch your full bootstrap
         boot = os.path.join(base_dir, 'rustpy-arch-bootstrap.sh')
         if not os.path.isfile(boot):
             return self._message("Bootstrap script missing!")
@@ -345,7 +384,9 @@ package() {{
 
         Gtk.main_quit()
 
-    # -- Dialog Helper --------------------------------------------------------
+    # ----------------------------------------
+    # Dialog Helper
+    # ----------------------------------------
     def _message(self, text):
         dlg = Gtk.MessageDialog(
             transient_for=self,
@@ -354,14 +395,15 @@ package() {{
             buttons=Gtk.ButtonsType.OK,
             text=text
         )
-        dlg.run()
-        dlg.destroy()
+        dlg.run(); dlg.destroy()
+
 
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
     win = InstallerGUI()
     win.connect("destroy", Gtk.main_quit)
     Gtk.main()
+
 
 
 ~~~
