@@ -32,7 +32,8 @@ chmod +x rustpy-arch-bootstrap.sh
 ./rustpy-arch-bootstrap.sh
 ~~~
 
-### Prerequisite: `asp` (Arch Source Packages)
+### 🎯 Prerequisite: asp (Arch Source Packages helper)
+We use asp to pull down the Arch kernel PKGBUILD and re-build a custom kernel. It lives in the [community] repository, so make sure you have that enabled:
 
 The custom-kernel feature uses `asp` to export Arch’s PKGBUILD and build your running kernel.  
 Make sure you have the `[community]` repo enabled in `/etc/pacman.conf`, then install:
@@ -40,6 +41,14 @@ Make sure you have the `[community]` repo enabled in `/etc/pacman.conf`, then in
 ```
 # Sync and install from the official repos:
 sudo pacman -Sy asp
+
+
+# Install yay (if you don’t have it already):
+git clone https://aur.archlinux.org/yay.git
+cd yay
+makepkg -si
+
+
 
 # —or— if you prefer an AUR helper:
 yay -S asp
