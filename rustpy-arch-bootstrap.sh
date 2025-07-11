@@ -6,9 +6,10 @@ import gi
 import random
 
 # -----------------------------------------------------------------------------
-# Auto-install missing Python modules via pacman
+# Auto-install missing Python modules / build tools via pacman
 # -----------------------------------------------------------------------------
 def ensure_pkg(pkg_name):
+    """Ensure that a pacman package is installed."""
     if subprocess.run(
         ['pacman','-Qi', pkg_name],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
@@ -158,13 +159,13 @@ class InstallerGUI(Gtk.Window):
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.nb.append_page(page, Gtk.Label(label="Disk Layout"))
         for label, rng in (
-            ("Root (GB):", (10,500,5)),
-            ("Home (GB):", (10,500,5)),
-            ("Var  (GB):", (5,200,5)),
+            ("Root", (10,500,5)),
+            ("Home", (10,500,5)),
+            ("Var",  (5,200,5)),
         ):
-            page.pack_start(Gtk.Label(label=label), False, False, 0)
+            page.pack_start(Gtk.Label(label=f"{label} (GB):"), False, False, 0)
             spin = Gtk.SpinButton.new_with_range(*rng)
-            setattr(self, f"spin_{label.split()[0].lower()}", spin)
+            setattr(self, f"spin_{label.lower()}", spin)
             page.pack_start(spin, False, False, 0)
 
     # --- Components ----------------------------------------------------------
@@ -228,10 +229,8 @@ class InstallerGUI(Gtk.Window):
         self.cb_systemd_rs = Gtk.CheckButton(label="systemd-system-rs")
         self.cb_rustpython = Gtk.CheckButton(label="RustPython")
         self.cb_pyo3       = Gtk.CheckButton(label="PyO3")
-        for cb in (
-            self.cb_ripgrep, self.cb_exa, self.cb_tar_rs,
-            self.cb_systemd_rs, self.cb_rustpython, self.cb_pyo3
-        ):
+        for cb in (self.cb_ripgrep,self.cb_exa,self.cb_tar_rs,
+                   self.cb_systemd_rs,self.cb_rustpython,self.cb_pyo3):
             page.pack_start(cb, False, False, 0)
 
     # --- Start Installation -------------------------------------------------
@@ -245,30 +244,35 @@ class InstallerGUI(Gtk.Window):
         # 2) theme
         if self.cb_gen_wall.get_active():
             self._generate_wallpaper()
-        # no-op if using system icons
 
-        # 3) rest of your flow (network, disk, etc.)
-        # [copy in your existing on_start logic here]
-        self._message("Now proceeding with normal Arch/RustPyDE install…")
+        # 3) proceed with the rest of your install flow...
+        self._message("Proceeding with normal Arch/RustPyDE install…")
         Gtk.main_quit()
 
     # --- Custom Kernel -------------------------------------------------------
     def _build_custom_kernel(self):
         self._message("Building custom kernel…")
-        ensure_pkg('asp')
+
+        # install build tools + linux headers + asp
+        for pkg in ('asp','base-devel','linux-headers','git'):
+            ensure_pkg(pkg)
+
         work = os.path.expanduser('~/rustpy-kernel')
-        if os.path.exists(work): subprocess.run(['rm','-rf',work])
-        os.makedirs(work,exist_ok=True)
-        # export Arch kernel PKGBUILD
+        if os.path.exists(work):
+            subprocess.run(['rm','-rf',work])
+        os.makedirs(work, exist_ok=True)
+
+        # export Arch's linux PKGBUILD
         run(['asp','export','linux'], cwd=work)
         kdir = os.path.join(work,'linux')
-        # copy running config
+
+        # import your running config if available
+        cfg = os.path.join(kdir, '.config')
         if os.path.exists('/proc/config.gz'):
-            run(['zcat','/proc/config.gz'], check=False, cwd=kdir)
-            subprocess.run(
-                ['zcat','/proc/config.gz'], stdout=open(os.path.join(kdir,'.config'),'wb')
-            )
-        # build
+            with open(cfg, 'wb') as out:
+                subprocess.run(['zcat','/proc/config.gz'], stdout=out, check=True)
+
+        # build & install
         try:
             run(['makepkg','-si','--noconfirm'], cwd=kdir)
             self._message("Custom kernel built & installed.")
@@ -279,16 +283,15 @@ class InstallerGUI(Gtk.Window):
     def _generate_wallpaper(self):
         path = os.path.expanduser('~/Pictures/rustpy_wallpaper.png')
         w,h = 1920,1080
-        im = Image.new('RGB',(w,h), (
+        im = Image.new('RGB', (w,h), (
             random.randrange(256),
             random.randrange(256),
             random.randrange(256)
         ))
         draw = ImageDraw.Draw(im)
-        # simple gradient
         for y in range(h):
             c = int(255 * y / h)
-            draw.line([(0,y),(w,y)], fill=(c,c//2,255-c))
+            draw.line([(0,y),(w,y)], fill=(c, c//2, 255-c))
         im.save(path)
         self._message(f"Wallpaper generated at {path}")
 
@@ -302,11 +305,12 @@ class InstallerGUI(Gtk.Window):
         )
         dlg.run(); dlg.destroy()
 
-# -----------------------------------------------------------------------------
+
 if __name__ == "__main__":
     win = InstallerGUI()
     win.connect("destroy", Gtk.main_quit)
     Gtk.main()
+
 
 
 
