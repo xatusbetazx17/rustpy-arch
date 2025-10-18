@@ -61,7 +61,7 @@ yay -S asp
 ├─ README.md
 ├─ LICENSE
 ├─ novaos/
-│  ├─ index.html                # UltraPlus mapeado para Pages
+│  ├─ index.html                
 │  ├─ NovaOS_UltraPlus.html
 │  ├─ NovaOS_Ultra.html
 │  ├─ NovaOS_Hyper.html
