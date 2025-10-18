@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>NovaOS — Hyper Edition (Pop‑Out Browser • Network Center • DOS EXE)</title>
+<style>
+  :root{
+    --bg: radial-gradient(1200px 800px at 20% 20%, #2a2a72 0%, #009ffd 30%, #111 85%);
+    --glass: rgba(255,255,255,.08);
+    --glass-2: rgba(255,255,255,.12);
+    --text: #e8eef5;
+    --text-dim: #b9c6d3;
+    --accent: #00d1ff;
+    --ok:#33d17a; --warn:#f6d32d; --bad:#f66151;
+    --shadow: 0 16px 40px rgba(0,0,0,.40);
+    --radius: 14px;
+    --blur: 14px;
+    --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent}
+  html,body{height:100%;margin:0;color:var(--text);font-family:var(--font);background:#0b0f1a;overflow:hidden}
+  #desktop{ position:fixed; inset:0; background:var(--bg); background-attachment:fixed; }
+  .stars::before,.stars::after{ content:""; position:absolute; inset:0; pointer-events:none;
+    background:
+      radial-gradient(2px 2px at 20% 30%, #fff8, #0000 60%),
+      radial-gradient(1.5px 1.5px at 70% 80%, #fff6, #0000 60%),
+      radial-gradient(1.2px 1.2px at 55% 15%, #fff6, #0000 60%),
+      radial-gradient(1.8px 1.8px at 90% 50%, #fff8, #0000 60%);
+    mix-blend-mode: screen; filter: drop-shadow(0 0 6px #fff3);
+  }
+  #taskbar{
+    position:fixed; left:calc(8px + var(--safe-left)); right:calc(8px + var(--safe-right)); bottom:calc(8px + var(--safe-bottom));
+    height:52px; display:flex; align-items:center; gap:8px; padding:8px 8px;
+    background:linear-gradient(#0a0e18dd,#04060add);
+    border:1px solid #ffffff1a; border-radius:14px; box-shadow: var(--shadow);
+    backdrop-filter: blur(var(--blur));
+  }
+  .btnish{display:flex; align-items:center; justify-content:center; gap:8px; height:38px; border-radius:12px; padding:0 14px;
+    color:var(--text); border:1px solid #ffffff22; background:linear-gradient(var(--glass), transparent); cursor:pointer; user-select:none}
+  .btnish:active{transform:translateY(1px)}
+  #task-running{display:flex; gap:6px; flex:1; padding-left:6px; overflow-x:auto}
+  .task-icon{min-width:38px; padding:0 10px; position:relative; white-space:nowrap}
+  .task-icon.active{outline:2px solid #00d1ff55}
+  .dot{position:absolute; bottom:4px; left:calc(50% - 3px); width:6px; height:6px; border-radius:999px; background:#00e3ff}
+  #clock{margin-left:auto; font-variant-numeric:tabular-nums; opacity:.9}
+  #startMenu{
+    position:fixed; left:calc(12px + var(--safe-left)); right:calc(12px + var(--safe-right)); bottom:calc(60px + var(--safe-bottom));
+    max-width:980px; margin:0 auto; max-height:72vh; overflow:auto; border:1px solid #ffffff22; border-radius:16px;
+    background:linear-gradient(180deg, #0b1222ee, #0a0f1acc); box-shadow: var(--shadow); display:none; padding:14px;
+  }
+  .grid{display:grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap:12px}
+  .tile{display:flex; flex-direction:column; gap:8px; align-items:center; justify-content:center; border:1px dashed #ffffff24; border-radius:14px; padding:18px 10px; text-align:center; cursor:pointer; background:linear-gradient(180deg, #ffffff0e, #ffffff06); font-size:1rem}
+  .tile:hover{border-style:solid; border-color:#00d1ff55}
+  .section-title{margin:6px 2px 10px; color:var(--text-dim); font-size:.95rem}
+
+  /* Windows */
+  .win{
+    position:absolute; min-width:300px; min-height:220px; border-radius:16px;
+    background:linear-gradient(180deg, #0c1426f0, #0b1220d8);
+    border:1px solid #ffffff22; box-shadow: var(--shadow);
+    overflow:hidden; display:flex; flex-direction:column;
+    transition: transform .18s ease, opacity .18s ease, box-shadow .18s ease;
+    will-change: transform, opacity, left, top, width, height;
+  }
+  .win.inactive{opacity:.96; box-shadow: 0 10px 24px rgba(0,0,0,.25)}
+  .win .title{
+    height:46px; display:flex; align-items:center; gap:10px; padding:0 10px;
+    background:linear-gradient(180deg, #0f1a31cc, #0b1327aa); border-bottom:1px solid #ffffff1c; user-select:none;
+    touch-action:none;
+  }
+  .win .name{flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .wbtn{width:40px; height:30px; display:grid; place-items:center; border-radius:10px; cursor:pointer}
+  .wbtn:hover{background:#ffffff15}
+  .wbtn:active{transform:translateY(1px)}
+  .win .content{flex:1; overflow:auto; padding:12px}
+  .win .status{height:28px; font-size:.85rem; color:#cbd5e1aa; border-top:1px solid #ffffff1a; padding:4px 8px; display:flex; align-items:center; gap:10px}
+  .resize{position:absolute; opacity:0}
+  .resize.edge{position:absolute}
+  .resize.n{top:-2px; left:8px; right:8px; height:6px; cursor:ns-resize}
+  .resize.s{bottom:-2px; left:8px; right:8px; height:6px; cursor:ns-resize}
+  .resize.e{top:8px; bottom:8px; right:-2px; width:6px; cursor:ew-resize}
+  .resize.w{top:8px; bottom:8px; left:-2px; width:6px; cursor:ew-resize}
+  .resize.ne{top:-4px; right:-4px; width:12px; height:12px; cursor:nesw-resize}
+  .resize.nw{top:-4px; left:-4px; width:12px; height:12px; cursor:nwse-resize}
+  .resize.se{bottom:-4px; right:-4px; width:12px; height:12px; cursor:nwse-resize}
+  .resize.sw{bottom:-4px; left:-4px; width:12px; height:12px; cursor:nesw-resize}
+  .hidden{display:none !important}
+
+  /* Snap overlay */
+  #snapOverlay{position:fixed; inset:0; pointer-events:none; display:none}
+  .snapzone{position:absolute; border:2px dashed #00d1ff88; background:#00d1ff22; border-radius:12px}
+
+  /* Alt+Tab */
+  #altTab{position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); background:#0b1220ee; border:1px solid #ffffff22; border-radius:16px; box-shadow: var(--shadow); display:none; padding:12px; min-width:360px}
+  #altTab .item{padding:8px 12px; border-radius:10px; border:1px solid #ffffff22; margin:6px 4px; display:flex; align-items:center; gap:8px}
+  #altTab .item.active{outline:2px solid #00d1ff88}
+
+  /* Spotlight & palette */
+  #spotlight, #palette{
+    position:fixed; left:50%; transform:translateX(-50%); top:7%; width:min(900px, 92vw);
+    background:#0b1220ee; border:1px solid #ffffff22; border-radius:16px; box-shadow:var(--shadow);
+    backdrop-filter: blur(var(--blur)); display:none; padding:14px;
+  }
+  #spotlight input, #palette input{width:100%; font-size:1.1rem}
+  .results{margin-top:10px; max-height:56vh; overflow:auto}
+  .result{padding:10px 14px; border-radius:10px; display:flex; justify-content:space-between; border:1px solid #ffffff14; margin-bottom:6px; cursor:pointer}
+  .result:active{transform:translateY(1px)}
+
+  /* Notifications */
+  #toasts{position:fixed; right:calc(12px + var(--safe-right)); bottom:calc(64px + var(--safe-bottom)); display:flex; flex-direction:column; gap:8px; z-index:9999}
+  .toast{background:#0b1220ee; border:1px solid #ffffff22; border-radius:12px; padding:10px 12px; box-shadow: var(--shadow)}
+
+  /* Widgets */
+  #widgets{position:fixed; right:calc(16px + var(--safe-right)); top:calc(16px + var(--safe-top)); display:flex; gap:10px; z-index:1}
+  .widget{background:#0b1220cc; border:1px solid #ffffff25; border-radius:12px; padding:8px 12px; font-size:.9rem}
+
+  /* Lightbox */
+  #lightbox{position:fixed; inset:0; display:none; background:#000a; align-items:center; justify-content:center; z-index:99999}
+  #lightbox img{max-width:90vw; max-height:90vh; border-radius:12px; border:1px solid #ffffff22}
+
+  /* Mobile mode tweaks */
+  @media (max-width: 820px){
+    .win{border-radius:0; left:0 !important; top:0 !important; width:100vw !important; height:calc(100vh - 70px - var(--safe-bottom)) !important}
+    .win .title{height:56px}
+    #taskbar{height:64px}
+    .wbtn{width:48px; height:38px}
+  }
+</style>
+</head>
+<body>
+  <div id="desktop" class="stars" tabindex="-1"></div>
+
+  <div id="widgets">
+    <div class="widget" id="sysinfo">GPU: <span id="gpu">n/a</span> • Net: <span id="net">…</span></div>
+  </div>
+
+  <!-- Start menu -->
+  <div id="startMenu">
+    <div class="section-title">Pinned apps</div>
+    <div class="grid" id="startGrid"></div>
+    <div class="section-title">System</div>
+    <div class="grid" id="systemGrid"></div>
+  </div>
+
+  <!-- Spotlight / Palette -->
+  <div id="spotlight">
+    <input id="spotlightInput" placeholder="Search files & apps (⌘/Ctrl + Space)" />
+    <div class="results" id="spotlightResults"></div>
+  </div>
+  <div id="palette">
+    <input id="paletteInput" placeholder="Type a command (Ctrl/⌘ + K • Alt+Space menu)" />
+    <div class="results" id="paletteResults"></div>
+  </div>
+
+  <!-- Toasts / Lightbox / SnapOverlay / AltTab -->
+  <div id="toasts"></div>
+  <div id="lightbox"><img alt="preview"/></div>
+  <div id="snapOverlay">
+    <div class="snapzone" id="snapLeft"></div>
+    <div class="snapzone" id="snapRight"></div>
+    <div class="snapzone" id="snapTL"></div>
+    <div class="snapzone" id="snapTR"></div>
+    <div class="snapzone" id="snapBL"></div>
+    <div class="snapzone" id="snapBR"></div>
+  </div>
+  <div id="altTab"></div>
+
+  <!-- Taskbar -->
+  <div id="taskbar">
+    <div id="startBtn" class="btnish">🟦 Start</div>
+    <div id="searchBtn" class="btnish">🔎 Search</div>
+    <div id="task-running"></div>
+    <div class="tray-btn btnish" id="networkCenter">📶 Network</div>
+    <div class="tray-btn btnish" id="themeSwitch">🎨 Theme</div>
+    <div class="tray-btn btnish" id="quickShot">📸 Shot</div>
+    <div id="clock"></div>
+  </div>
+
+  <!-- CDNs (lazy-loaded inside apps when needed) -->
+  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.36.2/src-min-noconflict/ace.js" onerror="window.__ace_failed=1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.36.2/src-min-noconflict/ext-language_tools.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+<script>
+/* ============================================================
+   NovaOS Hyper — Pop‑Out Browser • Network Center • DOS EXE
+   ============================================================ */
+
+const $ = (sel, root=document) => root.querySelector(sel);
+const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
+const uuid = () => 'w' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+const isMobile = ()=> window.matchMedia('(max-width: 820px)').matches || /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const toast = (msg, timeout=3200) => { const t=document.createElement('div'); t.className='toast'; t.textContent=msg; $('#toasts').appendChild(t); setTimeout(()=>t.remove(), timeout); };
+const nowStr = ()=> new Date().toLocaleString();
+const download = (blob, filename)=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); };
+const clamp=(v,min,max)=>Math.max(min, Math.min(max, v));
+
+/* Widgets */
+function updateWidgets(){
+  $('#net').textContent = navigator.onLine ? 'Online' : 'Offline';
+  try{
+    const gl = document.createElement('canvas').getContext('webgl'); const dbg = gl && gl.getExtension('WEBGL_debug_renderer_info');
+    $('#gpu').textContent = (gl && dbg) ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : 'n/a';
+  }catch(e){ $('#gpu').textContent = 'n/a'; }
+}
+updateWidgets(); addEventListener('online', updateWidgets); addEventListener('offline', updateWidgets);
+
+/* Clock */
+setInterval(()=>{ const d = new Date(); $('#clock').textContent = d.toLocaleString([], {hour:'2-digit', minute:'2-digit'}) + '  ' + d.toLocaleDateString(); }, 1000);
+
+/* Theming */
+const THEMES=[
+  {name:'Aurora', bg:'radial-gradient(1200px 800px at 20% 20%, #2a2a72 0%, #009ffd 30%, #111 85%)', accent:'#00d1ff'},
+  {name:'Sunset', bg:'radial-gradient(1100px 760px at 20% 30%, #ff7e5f 0%, #feb47b 35%, #0b0f1a 85%)', accent:'#ffd166'},
+  {name:'Emerald', bg:'radial-gradient(1100px 760px at 50% 30%, #093028 0%, #237a57 35%, #0b0f1a 85%)', accent:'#5af7b0'},
+  {name:'Noir', bg:'radial-gradient(1000px 700px at 75% 25%, #0f0c29 0%, #302b63 35%, #24243e 85%)', accent:'#9a86fd'},
+];
+function applyTheme(i){ const t=THEMES[i]; document.documentElement.style.setProperty('--bg', t.bg); document.documentElement.style.setProperty('--accent', t.accent); localStorage.setItem('nova_theme_idx', i); }
+function switchTheme(){ const idx=+localStorage.getItem('nova_theme_idx')||0; applyTheme((idx+1)%THEMES.length); }
+applyTheme(+localStorage.getItem('nova_theme_idx')||0);
+$('#themeSwitch').onclick=switchTheme;
+
+/* VFS */
+const VFS_KEY='nova_vfs_hyper1';
+const initFS=()=>({type:'dir',name:'/',children:{Documents:{type:'dir',name:'Documents',children:{}},Pictures:{type:'dir',name:'Pictures',children:{}},Videos:{type:'dir',name:'Videos',children:{}},Music:{type:'dir',name:'Music',children:{}}}});
+let VFS=null;
+function loadFS(){ try{ VFS=JSON.parse(localStorage.getItem(VFS_KEY))||initFS(); }catch(e){ VFS=initFS(); } }
+function saveFS(){ try{ localStorage.setItem(VFS_KEY, JSON.stringify(VFS)); }catch(e){ toast('Storage full or blocked.'); } }
+function pathParts(p){ return p.split('/').filter(Boolean); }
+function getNode(path){ if(path==='/'||!path) return VFS; let cur=VFS; for(const seg of pathParts(path)){ if(!cur.children||!cur.children[seg]) return null; cur=cur.children[seg]; } return cur; }
+function ensureDir(path){ let cur=VFS; for(const seg of pathParts(path)){ if(!cur.children[seg]) cur.children[seg]={type:'dir',name:seg,children:{}}; cur=cur.children[seg]; } return cur; }
+function listDir(path){ const n=getNode(path); if(!n||n.type!=='dir') return []; return Object.values(n.children).sort((a,b)=>a.type===b.type? a.name.localeCompare(b.name) : a.type==='dir'?-1:1); }
+function writeFile(path, content, mime='text/plain'){ const parts=pathParts(path); const name=parts.pop(); const dir=ensureDir('/'+parts.join('/')); dir.children[name]={type:'file',name, mime, size: (typeof content==='string'?content.length:0), content, created:Date.now(), modified:Date.now()}; saveFS(); }
+function renameNode(path, newName){ const parts=pathParts(path); const nm=parts.pop(); const dir=getNode('/'+parts.join('/')); if(!dir||!dir.children[nm]) return false; const node=dir.children[nm]; delete dir.children[nm]; node.name=newName; dir.children[newName]=node; saveFS(); return true; }
+function deleteNode(path){ const parts=pathParts(path); const nm=parts.pop(); const dir=getNode('/'+parts.join('/')); if(dir&&dir.children[nm]){ delete dir.children[nm]; saveFS(); return true; } return false; }
+loadFS();
+async function fileToDataURL(file){ return new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(file); }); }
+function resolveFileURL(node){ if(!node) return null; if(typeof node.content==='string' && node.content.startsWith('data:')) return node.content; if(typeof node.content==='string' && node.content.startsWith('{')){ try{ const j=JSON.parse(node.content); if(j.url) return j.url; }catch(e){} } return null; }
+
+/* ---------- Window Manager (drag-from-max fix, no accidental max) ---------- */
+const WM={ z:10, wins:new Map(), tasks:new Map(), activeId:null };
+function setActive(id){ $$('.win').forEach(w=>w.classList.add('inactive')); if(id){ const w=WM.wins.get(id); if(w) w.el.classList.remove('inactive'); bringToFront(id); } WM.activeId=id||null; }
+function bringToFront(id){ WM.z+=2; const w=WM.wins.get(id); if(!w) return; w.el.style.zIndex=WM.z; $$('.task-icon').forEach(t=>t.classList.remove('active')); const task=WM.tasks.get(id); if(task) task.classList.add('active'); }
+function animateTo(el, r1, r2, {opacityFrom=1, opacityTo=1, dur=180}={}){ el.animate([{transform:`translate(0,0) scale(1,1)`,opacity:opacityFrom},{transform:`translate(${r2.left-r1.left}px,${r2.top-r1.top}px) scale(${r2.width/r1.width},${r2.height/r1.height})`,opacity:opacityTo}],{duration:dur,easing:'ease'}); }
+function minimizeWindow(id){ const w=WM.wins.get(id); if(!w) return; const el=w.el; const task=WM.tasks.get(id); const r1=el.getBoundingClientRect(), r2=task.getBoundingClientRect(); animateTo(el,r1,r2,{opacityTo:.2}); setTimeout(()=>{ el.classList.add('hidden'); task.classList.remove('active'); w.state='min'; },180); }
+function restoreWindow(id){ const w=WM.wins.get(id); if(!w) return; const el=w.el; const task=WM.tasks.get(id); const r1=task.getBoundingClientRect(); el.classList.remove('hidden'); bringToFront(id); const r2=el.getBoundingClientRect(); animateTo(el,r1,r2,{opacityFrom:.2}); setActive(id); w.state='normal'; }
+function maximizeWindow(id){ const w=WM.wins.get(id); if(!w) return; const el=w.el; if(isMobile()) return; if(!el.dataset.prev) el.dataset.prev=JSON.stringify({left:el.style.left, top:el.style.top, width:el.style.width, height:el.style.height}); const before=el.getBoundingClientRect(); el.style.left='8px'; el.style.top='8px'; el.style.width=(innerWidth-16)+'px'; el.style.height=(innerHeight-80)+'px'; animateTo(el,before,el.getBoundingClientRect()); w.state='max'; }
+function unmaximizeWindow(id){ const w=WM.wins.get(id); if(!w) return; const el=w.el; if(!el.dataset.prev) return; const prev=JSON.parse(el.dataset.prev); const before=el.getBoundingClientRect(); el.style.left=prev.left; el.style.top=prev.top; el.style.width=prev.width; el.style.height=prev.height; animateTo(el,before,el.getBoundingClientRect()); w.state='normal'; }
+function toggleMax(id){ const w=WM.wins.get(id); if(!w) return; if(w.state==='max') unmaximizeWindow(id); else maximizeWindow(id); }
+function closeWindow(id){ const w=WM.wins.get(id); if(!w) return; const el=w.el; el.animate([{opacity:1, transform:'scale(1)'},{opacity:0, transform:'scale(.96)'}], {duration:140, easing:'ease-out'}).onfinish=()=>{ el.remove(); const t=WM.tasks.get(id); if(t) t.remove(); WM.wins.delete(id); WM.tasks.delete(id); setActive(null); }; }
+function createWindow({title, icon='🗔', width=860, height=580, x=24, y=24, content='', status=''}){
+  const id=uuid();
+  const el=document.createElement('div'); el.className='win inactive'; el.dataset.id=id;
+  if(isMobile()){ el.style.left='0px'; el.style.top='0px'; el.style.width='100vw'; el.style.height='calc(100vh - 70px - env(safe-area-inset-bottom))'; }
+  else { el.style.left=x+'px'; el.style.top=y+'px'; el.style.width=width+'px'; el.style.height=height+'px'; }
+  el.innerHTML=`
+    <div class="title" role="toolbar">
+      <div class="wbtn" data-act="menu">☰</div>
+      <div class="name"><span class="badge" style="margin-right:8px">${icon}</span>${title}</div>
+      <div class="wbtn" data-act="min">—</div>
+      <div class="wbtn" data-act="max">▢</div>
+      <div class="wbtn" data-act="close">✕</div>
+    </div>
+    <div class="content"></div>
+    <div class="status">${status}</div>
+    <div class="resize edge n" data-edge="n"></div>
+    <div class="resize edge s" data-edge="s"></div>
+    <div class="resize edge e" data-edge="e"></div>
+    <div class="resize edge w" data-edge="w"></div>
+    <div class="resize ne" data-edge="ne"></div>
+    <div class="resize nw" data-edge="nw"></div>
+    <div class="resize se" data-edge="se"></div>
+    <div class="resize sw" data-edge="sw"></div>
+  `;
+  $('#desktop').appendChild(el);
+  const cont=$('.content', el); cont.innerHTML=content;
+  const wrec = {el, title, icon, state:'normal'};
+  WM.wins.set(id, wrec);
+  const task=document.createElement('div'); task.className='task-icon'; task.innerHTML=`<span style="margin-right:6px">${icon}</span> <span class="tname">${title}</span> <span class="dot"></span>`;
+  task.addEventListener('click',()=>{ const isMin=el.classList.contains('hidden'); if(isMin) restoreWindow(id); else minimizeWindow(id); });
+  task.addEventListener('contextmenu',(e)=>{ e.preventDefault(); taskMenu(e.clientX, e.clientY, id); });
+  $('#task-running').appendChild(task); WM.tasks.set(id, task);
+  el.style.opacity=0; el.animate([{opacity:0, transform:'scale(.98)'},{opacity:1, transform:'scale(1)'}], {duration:160, easing:'ease-out'}).onfinish=()=>{ el.style.opacity=1; };
+  setActive(id);
+  const titleBar=$('.title', el);
+  let dragging=false, ox=0, oy=0, moved=false, startX=0, startY=0;
+  titleBar.addEventListener('pointerdown',(e)=>{
+    if(e.pointerType==='mouse' && e.button!==0) return;
+    if(e.target.closest('.wbtn')) return;
+    setActive(id);
+    moved=false;
+    if(!isMobile()){
+      if(wrec.state==='max'){ // Restore under cursor then drag
+        const prev=el.dataset.prev? JSON.parse(el.dataset.prev) : {width:(innerWidth*0.7)+'px', height:(innerHeight*0.7)+'px', left:'60px', top:'40px'};
+        el.style.width=prev.width; el.style.height=prev.height;
+        const rect=el.getBoundingClientRect();
+        el.style.left = (e.clientX - rect.width*0.5) + 'px';
+        el.style.top  = (e.clientY - 16) + 'px';
+        wrec.state='normal';
+      }
+      dragging=true; el.setPointerCapture?.(e.pointerId);
+      ox=e.clientX - el.offsetLeft; oy=e.clientY - el.offsetTop; startX=e.clientX; startY=e.clientY;
+      showSnapOverlay();
+    }
+  });
+  titleBar.addEventListener('pointermove',(e)=>{
+    if(!dragging) return;
+    moved=moved || Math.hypot(e.clientX-startX, e.clientY-startY)>6;
+    const nx=clamp(e.clientX-ox,4,innerWidth-4), ny=clamp(e.clientY-oy,4,innerHeight-90);
+    el.style.left=nx+'px'; el.style.top=ny+'px';
+    highlightSnap(nx, ny, el.offsetWidth, el.offsetHeight);
+  });
+  titleBar.addEventListener('pointerup',()=>{ if(!dragging) return; dragging=false; hideSnapOverlay(); performSnap(el); });
+  titleBar.addEventListener('dblclick',()=>{ if(!moved) toggleMax(id); });
+  el.addEventListener('pointerdown', ()=> setActive(id));
+  $$('.resize', el).forEach(h=>{
+    let resizing=false, rx=0, ry=0, rw=0, rh=0, rl=0, rt=0, edge=h.dataset.edge;
+    h.addEventListener('pointerdown',(e)=>{ resizing=true; el.setPointerCapture?.(e.pointerId); rx=e.clientX; ry=e.clientY; rw=el.offsetWidth; rh=el.offsetHeight; rl=el.offsetLeft; rt=el.offsetTop; setActive(id); });
+    h.addEventListener('pointermove',(e)=>{
+      if(!resizing) return;
+      let dx=e.clientX-rx, dy=e.clientY-ry;
+      if(edge.includes('e')) el.style.width=Math.max(300, rw+dx)+'px';
+      if(edge.includes('s')) el.style.height=Math.max(220, rh+dy)+'px';
+      if(edge.includes('w')){ const nw=Math.max(300, rw-dx); el.style.left=(rl+(rw-nw))+'px'; el.style.width=nw+'px'; }
+      if(edge.includes('n')){ const nh=Math.max(220, rh-dy); el.style.top=(rt+(rh-nh))+'px'; el.style.height=nh+'px'; }
+    });
+    h.addEventListener('pointerup',()=>{ resizing=false; });
+  });
+  el.addEventListener('click', (e)=>{ const btn=e.target.closest('.wbtn'); if(!btn) return; const act=btn.dataset.act; if(act==='close') closeWindow(id); if(act==='min') minimizeWindow(id); if(act==='max') toggleMax(id); if(act==='menu') windowMenu(el, id); });
+  return {id, el, contentEl: cont};
+}
+function windowMenu(el, id){
+  const m=document.createElement('div');
+  Object.assign(m.style,{position:'absolute', right:'10px', top:'46px', zIndex:99999, background:'#0b1220', border:'1px solid #ffffff22', borderRadius:'12px', padding:'6px'});
+  m.innerHTML=`<div class="btn" data-a="restore">Restore</div><div class="btn" data-a="min">Minimize</div><div class="btn" data-a="max">Maximize</div><div class="btn" data-a="close">Close</div>`;
+  el.appendChild(m);
+  m.addEventListener('click',(e)=>{ const a=e.target.closest('.btn')?.dataset?.a; if(!a) return; if(a==='restore') restoreWindow(id); if(a==='min') minimizeWindow(id); if(a==='max') maximizeWindow(id); if(a==='close') closeWindow(id); m.remove(); });
+  addEventListener('pointerdown',(e)=>{ if(!m.contains(e.target)) m.remove(); }, {once:true});
+}
+function taskMenu(x,y,id){
+  const m=document.createElement('div');
+  Object.assign(m.style,{position:'fixed', left:x+'px', top:y+'px', zIndex:99999, background:'#0b1220', border:'1px solid #ffffff22', borderRadius:'12px', padding:'6px'});
+  m.innerHTML=`<div class="btn" data-a="restore">Restore</div><div class="btn" data-a="min">Minimize</div><div class="btn" data-a="close">Close</div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click',(e)=>{ const a=e.target.closest('.btn')?.dataset?.a; if(!a) return; if(a==='restore') restoreWindow(id); if(a==='min') minimizeWindow(id); if(a==='close') closeWindow(id); m.remove(); });
+  addEventListener('pointerdown',(e)=>{ if(!m.contains(e.target)) m.remove(); }, {once:true});
+}
+
+/* Snap overlay (no top=max) */
+function showSnapOverlay(){ const o=$('#snapOverlay'); o.style.display='block'; const W=innerWidth, H=innerHeight-80, B=8, M=12; const left=$('#snapLeft'), right=$('#snapRight'), tl=$('#snapTL'), tr=$('#snapTR'), bl=$('#snapBL'), br=$('#snapBR'); Object.assign(left.style,{left:B+'px', top:B+'px', width:(W/2-M)+'px', height:(H-B*2)+'px'}); Object.assign(right.style,{right:B+'px', top:B+'px', width:(W/2-M)+'px', height:(H-B*2)+'px'}); const qW=W/2-M, qH=H/2-M; Object.assign(tl.style,{left:B+'px', top:B+'px', width:qW+'px', height:qH+'px'}); Object.assign(tr.style,{right:B+'px', top:B+'px', width:qW+'px', height:qH+'px'}); Object.assign(bl.style,{left:B+'px', bottom:(80+B)+'px', width:qW+'px', height:qH+'px', position:'fixed'}); Object.assign(br.style,{right:B+'px', bottom:(80+B)+'px', width:qW+'px', height:qH+'px', position:'fixed'}); }
+function hideSnapOverlay(){ $('#snapOverlay').style.display='none'; highlight(null); }
+let currentSnap=null;
+function highlightSnap(x,y,w,h){ const t=32, W=innerWidth, H=innerHeight-80; if(x<t){ highlight('left'); return; } if(x+w>W-t){ highlight('right'); return; } if(x<t && y<t){ highlight('tl'); return; } if(x+w>W-t && y<t){ highlight('tr'); return; } if(x<t && y+h>H-t){ highlight('bl'); return; } if(x+w>W-t && y+h>H-t){ highlight('br'); return; } highlight(null); }
+function highlight(zone){ currentSnap=zone; $$('#snapOverlay .snapzone').forEach(z=>z.style.outline=''); if(!zone) return; const map={left:'#snapLeft', right:'#snapRight', tl:'#snapTL', tr:'#snapTR', bl:'#snapBL', br:'#snapBR'}; $(map[zone]).style.outline='3px solid #00d1ff'; }
+function performSnap(el){ if(!currentSnap) return false; const W=innerWidth, H=innerHeight-80, B=8, M=12; if(currentSnap==='left'){ el.style.left=B+'px'; el.style.top=B+'px'; el.style.width=(W/2-M)+'px'; el.style.height=(H-B*2)+'px'; } if(currentSnap==='right'){ el.style.left=(W/2+4)+'px'; el.style.top=B+'px'; el.style.width=(W/2-M)+'px'; el.style.height=(H-B*2)+'px'; } const qW=W/2-M, qH=H/2-M; if(currentSnap==='tl'){ el.style.left=B+'px'; el.style.top=B+'px'; el.style.width=qW+'px'; el.style.height=qH+'px'; } if(currentSnap==='tr'){ el.style.left=(W-qW-B)+'px'; el.style.top=B+'px'; el.style.width=qW+'px'; el.style.height=qH+'px'; } if(currentSnap==='bl'){ el.style.left=B+'px'; el.style.top=(H-qH-B)+'px'; el.style.width=qW+'px'; el.style.height=qH+'px'; } if(currentSnap==='br'){ el.style.left=(W-qW-B)+'px'; el.style.top=(H-qH-B)+'px'; el.style.width=qW+'px'; el.style.height=qH+'px'; } currentSnap=null; return true; }
+
+/* Alt+Tab */
+let altTabVisible=false, altTabIndex=0;
+function showAltTab(){ const list=[...WM.wins.entries()].filter(([id,w])=>!w.el.classList.contains('hidden')); if(!list.length) return; const at=$('#altTab'); at.innerHTML=''; list.forEach(([id,w],i)=>{ const d=document.createElement('div'); d.className='item'+(i===0?' active':''); d.dataset.id=id; d.innerHTML=`<span style="font-size:20px">${w.icon}</span> ${w.title}`; at.appendChild(d); }); at.style.display='block'; altTabVisible=true; altTabIndex=0; }
+function cycleAltTab(dir=1){ if(!altTabVisible) showAltTab(); const items=$$('#altTab .item'); if(!items.length) return; items.forEach(i=>i.classList.remove('active')); altTabIndex=(altTabIndex+dir+items.length)%items.length; items[altTabIndex].classList.add('active'); }
+function commitAltTab(){ const items=$$('#altTab .item'); if(!items.length) return; const id=items[altTabIndex].dataset.id; $('#altTab').style.display='none'; altTabVisible=false; restoreWindow(id); setActive(id); }
+document.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='w'){ if(WM.activeId){ e.preventDefault(); closeWindow(WM.activeId);} } if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='m'){ if(WM.activeId){ e.preventDefault(); minimizeWindow(WM.activeId);} } if(e.altKey&&e.code==='Space'){ e.preventDefault(); if(WM.activeId){ const w=WM.wins.get(WM.activeId); if(w) windowMenu(w.el, WM.activeId);} } if(e.altKey&&e.code==='Tab'){ e.preventDefault(); cycleAltTab(1);} if(e.key==='Alt'){ if(!altTabVisible) showAltTab(); } if(e.metaKey&&e.code==='ArrowLeft'){ e.preventDefault(); const w=WM.wins.get(WM.activeId); if(!w) return; highlight('left'); performSnap(w.el);} if(e.metaKey&&e.code==='ArrowRight'){ e.preventDefault(); const w=WM.wins.get(WM.activeId); if(!w) return; highlight('right'); performSnap(w.el);} if(e.metaKey&&e.code==='ArrowUp'){ e.preventDefault(); if(WM.activeId) maximizeWindow(WM.activeId);} if(e.metaKey&&e.code==='ArrowDown'){ e.preventDefault(); if(WM.activeId) unmaximizeWindow(WM.activeId);} });
+document.addEventListener('keyup',(e)=>{ if(e.key==='Alt' && altTabVisible){ commitAltTab(); } });
+
+/* Start / Spotlight / Palette */
+const APPS=[]; const registerApp=(a)=>APPS.push(a);
+function buildStartMenu(){
+  const pinned=['browser','network','explorer','notepad','code','terminal','exe','paint','video','snake','calc','music','image','notes'];
+  const system=['settings','info'];
+  const g=$('#startGrid'); g.innerHTML=''; const s=$('#systemGrid'); s.innerHTML='';
+  function addTile(app, grid){ const t=document.createElement('div'); t.className='tile'; t.innerHTML=`<div style="font-size:28px">${app.icon}</div><div>${app.name}</div>`; t.onclick=()=>{ openApp(app.id); toggleStart(false); }; grid.appendChild(t); }
+  pinned.forEach(id=>{ const a=APPS.find(x=>x.id===id); if(a) addTile(a, g); });
+  system.forEach(id=>{ const a=APPS.find(x=>x.id===id); if(a) addTile(a, s); });
+}
+function toggleStart(force){ const m=$('#startMenu'); if(force===true) m.style.display='block'; else if(force===false) m.style.display='none'; else m.style.display= m.style.display==='block'?'none':'block'; }
+$('#startBtn').onclick=()=>toggleStart();
+$('#searchBtn').onclick=()=>openSpotlight();
+
+function openSpotlight(){ $('#spotlight').style.display='block'; const i=$('#spotlightInput'); i.value=''; i.focus(); renderSpotlight(''); }
+function renderSpotlight(q){
+  const res=$('#spotlightResults'); res.innerHTML='';
+  const all=[]; (function walk(p, n){ if(n.type==='dir'){ for(const k in n.children) walk((p? p+'/'+k : '/'+k), n.children[k]); } else all.push({path:p, node:n}); })('', VFS);
+  all.filter(f=>f.path.toLowerCase().includes(q.toLowerCase())).slice(0,20).forEach(f=>{
+    const r=document.createElement('div'); r.className='result'; r.innerHTML=`<div>📄 ${f.path}</div><div class="badge">file</div>`; r.onclick=()=>{ openFile(f.path); $('#spotlight').style.display='none'; }; res.appendChild(r);
+  });
+  APPS.filter(a=>a.name.toLowerCase().includes(q.toLowerCase())).forEach(app=>{
+    const r=document.createElement('div'); r.className='result'; r.innerHTML=`<div>${app.icon} ${app.name}</div><div class="badge">app</div>`; r.onclick=()=>{ openApp(app.id); $('#spotlight').style.display='none'; }; res.appendChild(r);
+  });
+}
+$('#spotlightInput').addEventListener('input', (e)=>renderSpotlight(e.target.value));
+document.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()===' ') { e.preventDefault(); openSpotlight(); } });
+document.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k') { e.preventDefault(); openPalette(); } });
+function openPalette(){ $('#palette').style.display='block'; const i=$('#paletteInput'); i.value=''; i.focus(); renderPalette(''); }
+function renderPalette(q){
+  const actions=[
+    {name:'Open File Explorer', run:()=>openApp('explorer')},
+    {name:'New Text File in Documents', run:()=>{ const p='/Documents/new-'+Date.now()+'.txt'; writeFile(p,''); openApp('notepad', p); }},
+    {name:'Switch Theme', run:()=>switchTheme()},
+    {name:'Take Desktop Screenshot', run:async()=>{ if(window.html2canvas){ const c=await html2canvas($('#desktop'),{backgroundColor:null,scale:2}); c.toBlob(b=>download(b,'desktop.png')); } else toast('Screenshot not supported here.'); }},
+  ];
+  const res=$('#paletteResults'); res.innerHTML=''; actions.filter(a=>a.name.toLowerCase().includes(q.toLowerCase())).forEach(a=>{ const r=document.createElement('div'); r.className='result'; r.textContent=a.name; r.onclick=()=>{ a.run(); $('#palette').style.display='none'; }; res.appendChild(r); });
+}
+document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ ['spotlight','palette','startMenu','lightbox'].forEach(id=>{ const n=$('#'+id); if(n) n.style.display='none'; }); } });
+
+/* Desktop shortcuts */
+(function addShortcuts(){ const shortcuts=[{id:'browser',x:18,y:18},{id:'explorer',x:18,y:98},{id:'notepad',x:18,y:178},{id:'code',x:18,y:258},{id:'terminal',x:18,y:338},{id:'snake',x:18,y:418}];
+  shortcuts.forEach(sc=>{ const a=APPS.find(x=>x.id===sc.id); if(!a) return; const d=document.createElement('div'); d.style.position='absolute'; d.style.left=sc.x+'px'; d.style.top=sc.y+'px'; d.style.padding='8px'; d.style.textAlign='center'; d.style.width='104px'; d.style.cursor='pointer'; d.innerHTML=`<div style="font-size:28px">${a.icon}</div><div style="font-size:.9rem; margin-top:4px">${a.name}</div>`; d.onclick=()=>openApp(sc.id); $('#desktop').appendChild(d); });
+})();
+
+/* Quick tools */
+$('#quickShot').onclick=async()=>{ if(window.html2canvas){ const c=await html2canvas($('#desktop'),{backgroundColor:null,scale:2}); c.toBlob(b=>download(b,'desktop.png')); } else toast('Screenshot not supported.'); };
+document.addEventListener('pointerdown',(e)=>{ if($('#startMenu').style.display==='block' && !$('#startMenu').contains(e.target) && !$('#startBtn').contains(e.target)) toggleStart(false); });
+
+/* ---------- Open with default app ---------- */
+function openFile(path){
+  const node=getNode(path); if(!node) return toast('File not found.');
+  if(node.mime?.startsWith?.('text/')) openApp('notepad', path);
+  else if(node.mime?.startsWith?.('image/')) openApp('image', {path});
+  else if(node.mime?.startsWith?.('video/')) openApp('video', {path});
+  else if(node.mime?.startsWith?.('audio/')) openApp('music', {path});
+  else openApp('notepad', path);
+}
+
+/* ---------- Apps ---------- */
+function icon(name){ return ({browser:'🌐', network:'📶', explorer:'📁', notepad:'📝', code:'🧑‍💻', terminal:'>_', exe:'🧪', paint:'🎨', video:'🎬', snake:'🟩', calc:'🧮', music:'🎵', image:'🖼️', notes:'🗒️', settings:'⚙️', info:'ℹ️'})[name] || '🗔'; }
+
+/* Browser — Pop‑Out tabs + local HTML embed */
+registerApp({ id:'browser', name:'Web Browser', icon:icon('browser'),
+  open(){
+    const {contentEl}=createWindow({title:'Web Browser (pop‑out tabs)', icon:icon('browser'), width:1020, height:720, status:'If a site blocks embedding, it opens in a separate window/tab.'});
+    contentEl.innerHTML=`
+      <div class="toolbar" style="gap:6px">
+        <button class="btn" id="newTab">＋</button>
+        <button class="btn" id="closeTab">✕</button>
+        <button class="btn" id="back">←</button>
+        <button class="btn" id="fwd">→</button>
+        <button class="btn" id="reload">⟳</button>
+        <input id="url" placeholder="Enter URL or search…" style="flex:1; min-width:180px"/>
+        <button class="btn ok" id="go">Go</button>
+        <button class="btn" id="openFile">Open Local HTML…</button>
+      </div>
+      <div class="list" id="tabbar" style="display:flex; gap:6px; padding:6px; overflow:auto"></div>
+      <div id="embedWrap" style="position:relative; height:calc(100% - 140px); border:1px solid #ffffff22; border-radius:12px; overflow:hidden">
+        <div id="embedNote" style="padding:10px; opacity:.85">Embedded tab appears here when opening a local HTML file (same‑origin). External sites open as pop‑out tabs you can control from here.</div>
+      </div>`;
+    const url=$('#url', contentEl), tabbar=$('#tabbar', contentEl), embedWrap=$('#embedWrap', contentEl), note=$('#embedNote', contentEl);
+    const tabs=[]; let active=-1;
+    function addChip(i){ const chip=document.createElement('div'); chip.className='btn'; chip.dataset.id=i; chip.textContent=tabs[i].title||('Tab '+(i+1)); chip.onclick=()=>activate(i); tabbar.appendChild(chip); }
+    function activate(i){ active=i; [...tabbar.children].forEach((c,ix)=> c.style.outline = (ix===i?'2px solid #00d1ff88':'')); const t=tabs[i]; url.value=t.url||''; if(t.mode==='embed'){ embedWrap.innerHTML=''; embedWrap.appendChild(t.iframe); note && (note.remove()); } else { // external
+        embedWrap.innerHTML='<div style="padding:10px; opacity:.85">External tab is open in a separate window. Use controls or bring it to front.</div>';
+      }
+    }
+    function normalize(input){
+      if(/^https?:\/\//i.test(input)) return input;
+      if(input.includes('.') && !input.includes(' ')) return 'https://' + input;
+      const q = encodeURIComponent(input); return 'https://duckduckgo.com/?q='+q;
+    }
+    function openExternal(u){
+      const w = window.open('about:blank','_blank','width=1200,height=800'); // may be blocked if pop-ups are blocked
+      if(!w){ toast('Pop‑up blocked. Please allow pop‑ups for this page.'); return null; }
+      try{ w.location.href=u; }catch(_){}
+      return w;
+    }
+    function addExternal(u){
+      const i=tabs.length; const w=openExternal(u);
+      if(!w){ // fallback to embed note
+        toast('Could not open a new window. Use the Open button or allow pop‑ups.');
+        return;
+      }
+      tabs.push({mode:'external', win:w, url:u, title: u.replace(/^https?:\/\//,'')});
+      addChip(i); activate(i);
+    }
+    function addEmbedFromFile(blobUrl){
+      const i=tabs.length; const iframe=document.createElement('iframe'); iframe.style.position='absolute'; iframe.style.inset='0'; iframe.src=blobUrl; tabs.push({mode:'embed', iframe, url:blobUrl, title:'Local HTML'}); addChip(i); activate(i);
+    }
+    function navigate(u){
+      if(active<0) { addExternal(normalize(u||'https://example.org/')); return; }
+      const t=tabs[active]; const nu=normalize(u||t.url||'https://example.org/'); t.url=nu;
+      if(t.mode==='external'){ try{ t.win && (t.win.location.href=nu); }catch(_){ toast('Could not navigate external tab (closed?)'); } }
+      else if(t.mode==='embed'){ t.iframe.src=nu; }
+      url.value=nu;
+    }
+    function back(){ const t=tabs[active]; if(!t) return; if(t.mode==='external'){ try{ t.win && t.win.history.back(); }catch(_){ } } else { t.iframe.contentWindow?.history.back(); } }
+    function fwd(){ const t=tabs[active]; if(!t) return; if(t.mode==='external'){ try{ t.win && t.win.history.forward(); }catch(_){ } } else { t.iframe.contentWindow?.history.forward(); } }
+    function reload(){ const t=tabs[active]; if(!t) return; if(t.mode==='external'){ try{ t.win && t.win.location.reload(); }catch(_){ } } else { t.iframe.contentWindow?.location.reload(); } }
+    function closeTab(){
+      if(active<0) return; const t=tabs[active];
+      if(t.mode==='external'){ try{ t.win && t.win.close(); }catch(_){ } }
+      tabs.splice(active,1); tabbar.removeChild(tabbar.children[active] || tabbar.lastChild);
+      if(!tabs.length){ embedWrap.innerHTML=''; embedWrap.appendChild(note); active=-1; return; }
+      activate(Math.max(0, active-1));
+    }
+    $('#newTab', contentEl).onclick=()=> addExternal('https://example.org/');
+    $('#closeTab', contentEl).onclick=()=> closeTab();
+    $('#back', contentEl).onclick=()=> back();
+    $('#fwd', contentEl).onclick=()=> fwd();
+    $('#reload', contentEl).onclick=()=> reload();
+    $('#go', contentEl).onclick=()=> navigate(url.value||'');
+    url.addEventListener('keydown',(e)=>{ if(e.key==='Enter') navigate(url.value||''); });
+    $('#openFile', contentEl).onclick=()=>{ const inp=document.createElement('input'); inp.type='file'; inp.accept='.html,text/html'; inp.onchange=async()=>{ const f=inp.files[0]; if(!f) return; const url=URL.createObjectURL(f); addEmbedFromFile(url); }; inp.click(); };
+    addExternal('https://developer.mozilla.org/');
+  }
+});
+
+/* Network Center — simulated Wi‑Fi + real connectivity test */
+registerApp({ id:'network', name:'Network Center', icon:icon('network'),
+  open(){
+    const {contentEl}=createWindow({title:'Network Center', icon:icon('network'), width:720, height:520, status:'Browsers cannot control real Wi‑Fi hardware. This is a safe simulation + real connectivity test.'});
+    contentEl.innerHTML=`
+      <div class="toolbar">
+        <button class="btn ok" id="scan">Scan</button>
+        <button class="btn" id="test">Test Internet</button>
+        <label>Proxy <input id="proxy" placeholder="https://your-cors-proxy.example/ (optional)" style="min-width:260px"/></label>
+        <span class="badge">Online: <span id="ison">${navigator.onLine}</span></span>
+      </div>
+      <div class="grid" style="grid-template-columns: 1fr 1fr; gap:10px; align-items:start">
+        <div class="list" style="min-height:320px">
+          <table style="width:100%"><thead><tr><th>SSID</th><th>Signal</th><th></th></tr></thead><tbody id="nets"></tbody></table>
+        </div>
+        <div class="list" style="min-height:320px; padding:10px">
+          <div><b>Active connection</b></div>
+          <div id="active">None</div>
+          <hr style="border:0;border-top:1px solid #ffffff22; margin:8px 0"/>
+          <div><b>Details</b></div>
+          <div id="details" style="opacity:.85">—</div>
+        </div>
+      </div>`;
+    const nets=$('#nets', contentEl), active=$('#active', contentEl), details=$('#details', contentEl), proxy=$('#proxy', contentEl), ison=$('#ison', contentEl);
+    proxy.value = localStorage.getItem('nova_proxy')||'';
+    function fakeScan(){
+      const names=['NovaNet','Belleville‑Cafe','Marcelo‑Phone‑Hotspot','Home‑5G','Warehouse‑Guest'];
+      return names.map(n=>({ssid:n, rssi: Math.floor(40+Math.random()*60)})).sort((a,b)=>b.rssi-a.rssi);
+    }
+    function renderList(list){
+      nets.innerHTML='';
+      list.forEach(net=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${net.ssid}</td><td>${net.rssi}%</td><td><button class="btn" data-ssid="${net.ssid}">Connect</button></td>`;
+        tr.querySelector('button').onclick=()=>{
+          const pwd=prompt('Password for '+net.ssid+' (not used; for demo)');
+          localStorage.setItem('nova_active_net', net.ssid);
+          active.textContent = net.ssid;
+          details.textContent = `Connected to ${net.ssid}. Note: This does not change your OS network; it only configures NovaOS apps.`;
+          toast('Connected (simulated).');
+        };
+        nets.appendChild(tr);
+      });
+    }
+    $('#scan', contentEl).onclick=()=> renderList(fakeScan());
+    $('#test', contentEl).onclick=async()=>{
+      ison.textContent = navigator.onLine;
+      try{
+        const controller = new AbortController();
+        const t=setTimeout(()=>controller.abort(), 6000);
+        const u = 'https://www.google.com/generate_204';
+        await fetch(u, {mode:'no-cors', signal: controller.signal});
+        clearTimeout(t); toast('Internet reachable.');
+      }catch(e){ toast('No internet or blocked by network.'); }
+    };
+    proxy.addEventListener('change',()=>{ localStorage.setItem('nova_proxy', proxy.value.trim()); toast('Proxy saved for apps that support it.'); });
+    renderList(fakeScan());
+    const act=localStorage.getItem('nova_active_net'); if(act){ active.textContent=act; details.textContent=`Connected to ${act}.`; }
+    addEventListener('online', ()=> ison.textContent = true); addEventListener('offline', ()=> ison.textContent = false);
+  }
+});
+$('#networkCenter').onclick=()=>openApp('network');
+
+/* Notepad */
+registerApp({ id:'notepad', name:'Notepad', icon:icon('notepad'),
+  open(path=null){
+    const {contentEl}=createWindow({title:'Notepad'+(path?' — '+path:''), icon:icon('notepad'), width:840, height:560});
+    contentEl.innerHTML=`
+      <div class="toolbar">
+        <button class="btn ok" id="save">Save</button>
+        <button class="btn" id="saveAs">Save As…</button>
+        <span class="badge" id="info"></span>
+        <input id="filePath" placeholder="/Documents/notes.txt" style="flex:1; min-width:140px"/>
+      </div>
+      <textarea id="ta" spellcheck="false" placeholder="Type here…"></textarea>
+      <div class="status" id="status"></div>`;
+    const ta=$('#ta', contentEl), status=$('#status', contentEl);
+    $('#filePath', contentEl).value = path || '/Documents/untitled.txt';
+    if(path){ const node=getNode(path); if(node) ta.value=node.content||''; }
+    function info(){ $('#info', contentEl).textContent = `${ta.value.length} chars`; }
+    let tmr=null; ta.addEventListener('input', ()=>{ info(); status.textContent='Edited • '+nowStr(); clearTimeout(tmr); tmr=setTimeout(()=>{ const p=$('#filePath', contentEl).value||'/Documents/untitled.txt'; writeFile(p, ta.value, 'text/plain'); status.textContent='Autosaved • '+nowStr(); }, 900); });
+    $('#save', contentEl).onclick=()=>{ const p=$('#filePath', contentEl).value||'/Documents/untitled.txt'; writeFile(p, ta.value, 'text/plain'); status.textContent='Saved • '+nowStr(); };
+    $('#saveAs', contentEl).onclick=()=>{ const name=prompt('Save as file name','notes-'+Date.now()+'.txt'); if(!name) return; const p='/Documents/'+name; writeFile(p, ta.value, 'text/plain'); $('#filePath', contentEl).value=p; status.textContent='Saved • '+nowStr(); };
+    info();
+  }
+});
+
+/* Code */
+registerApp({ id:'code', name:'Code Editor', icon:icon('code'),
+  open(path=null){
+    const {contentEl}=createWindow({title:'Code Editor', icon:icon('code'), width:980, height:620});
+    contentEl.innerHTML=`
+      <div class="toolbar">
+        <button class="btn ok" id="runJS">Run JS ▶</button>
+        <select id="mode"><option value="javascript">JavaScript</option><option value="python">Python</option><option value="html">HTML</option><option value="css">CSS</option></select>
+        <button class="btn" id="open">Open…</button>
+        <button class="btn" id="save">Save</button>
+        <input id="path" placeholder="/Documents/app.js" style="flex:1; min-width:140px"/>
+      </div>
+      <div id="editorWrap" style="height:420px; border:1px solid #ffffff22; border-radius:12px; overflow:hidden"></div>
+      <div class="toolbar" style="margin-top:10px"><span class="badge">Console</span><button class="btn" id="clear">Clear</button></div>
+      <div id="console" style="height:120px; overflow:auto; border:1px solid #ffffff22; border-radius:12px; padding:8px; background:#080e1a"></div>`;
+    const con=$('#console', contentEl); const log=(m)=>{ const d=document.createElement('div'); d.textContent=m; con.appendChild(d); con.scrollTop=con.scrollHeight; };
+    let getValue, setValue;
+    if(window.ace && !window.__ace_failed){
+      const editor=ace.edit($('#editorWrap', contentEl)); editor.setTheme("ace/theme/one_dark"); editor.session.setMode("ace/mode/javascript"); editor.setOptions({fontSize:"14px"}); getValue=()=>editor.getValue(); setValue=(v)=>editor.setValue(v, -1); $('#mode', contentEl).onchange=(e)=> editor.session.setMode("ace/mode/"+e.target.value);
+    } else {
+      $('#editorWrap', contentEl).innerHTML = `<textarea id="fallbackTA" style="width:100%; height:100%; border:0; background:#0b0f1a; color:#e8eef5; font-family:var(--mono); font-size:14px; padding:10px"></textarea>`;
+      const ta=$('#fallbackTA', contentEl); getValue=()=>ta.value; setValue=(v)=>{ ta.value=v; };
+      toast('Ace not available; using simple textarea.');
+    }
+    $('#clear', contentEl).onclick=()=> con.innerHTML='';
+    $('#runJS', contentEl).onclick=()=>{ const code=getValue(); try{ const res=Function('"use strict"; return (function(){'+code+'})();')(); log('▶ '+String(res)); }catch(e){ log('⚠ '+e); } };
+    $('#open', contentEl).onclick=()=>{ const p=prompt('Path','/Documents/app.js'); if(!p) return; const node=getNode(p); if(!node||node.type!=='file') return toast('Not found'); setValue(node.content||''); $('#path', contentEl).value=p; };
+    $('#save', contentEl).onclick=()=>{ const p=$('#path', contentEl).value||('/Documents/code-'+Date.now()+'.js'); const mode=$('#mode', contentEl).value; const mime=mode==='python'?'text/x-python': mode==='html'?'text/html': mode==='css'?'text/css':'application/javascript'; writeFile(p, getValue(), mime); toast('Saved to '+p); };
+    if(path){ const node=getNode(path); if(node) setValue(node.content||''); $('#path', contentEl).value=path; }
+  }
+});
+
+/* Terminal with pip shim */
+let pyodideReady=null;
+async function ensurePyodide(){ if(pyodideReady) return pyodideReady; if(!navigator.onLine){ toast('Offline: Python packages cannot load.'); throw new Error('offline'); }
+  if(!window.loadPyodide){ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js'; pyodideReady=new Promise(r=>{s.onload=r;}); document.body.appendChild(s); await pyodideReady; }
+  window.pyodide = await loadPyodide({stdout:(t)=>{}, stderr:(t)=>{}}); await pyodide.loadPackage('micropip'); toast('Python ready.'); return window.pyodide; }
+registerApp({ id:'terminal', name:'Terminal (Python + pip)', icon:icon('terminal'),
+  open(){
+    const {contentEl}=createWindow({title:'Terminal — Python (Pyodide + pip shim)', icon:icon('terminal'), width:900, height:600, status:'Use !pip install <package>  •  Pure-Python wheels only'});
+    contentEl.innerHTML=`
+      <div class="toolbar">
+        <button class="btn ok" id="run">Run (Enter)</button>
+        <button class="btn" id="clear">Clear</button>
+        <button class="btn" id="list">List packages</button>
+        <button class="btn" id="install">pip install…</button>
+        <span class="badge" id="pyState">Loading…</span>
+      </div>
+      <div id="term" style="height:calc(50vh - 90px); overflow:auto; background:#080e1a; border:1px solid #ffffff22; border-radius:12px; padding:8px; font-family:var(--mono)"></div>
+      <textarea id="inp" spellcheck="false" style="height:160px" placeholder='Type Python. Use "!pip install packagename". Shift+Enter newline, Enter run.'></textarea>`;
+    const term=$('#term', contentEl), inp=$('#inp', contentEl), state=$('#pyState', contentEl);
+    const print=(s)=>{ const d=document.createElement('div'); d.textContent=s; term.appendChild(d); term.scrollTop=term.scrollHeight; };
+    (async()=>{ try{ await ensurePyodide(); state.textContent='Python '+pyodide.runPython('import sys; sys.version'); print('>>> Python ready'); }catch(e){ state.textContent='Unavailable (offline?)'; print('>>> Python unavailable: '+e.message); } })();
+    function parsePip(src){ const m=src.trim().match(/^!pip\s+install\s+(.+)/i); return m? m[1].split(/\s+/).filter(Boolean):[]; }
+    async function pipInstall(pkgs){ if(!window.pyodide){ toast('Python not loaded.'); return; } try{ print('>>> pip install '+pkgs.join(' ')); await pyodide.runPythonAsync(`import micropip; await micropip.install(${JSON.stringify(pkgs)})`); print('Installed: '+pkgs.join(', ')); }catch(err){ print('pip error: '+err); print('Note: Only pure-Python wheels are supported in Pyodide.'); } }
+    async function run(){ if(!window.pyodide){ toast('Python not loaded.'); return; } const src=inp.value.trim(); const pkgs=parsePip(src); if(pkgs.length){ await pipInstall(pkgs); return; } print('>>> '+src.split('\n').join('\n... ')); try{ const out=await pyodide.runPythonAsync(src); if(out!==undefined) print(String(out)); }catch(err){ print('Error: '+err); } }
+    $('#run', contentEl).onclick=run; $('#clear', contentEl).onclick=()=>{ term.innerHTML=''; }; $('#list', contentEl).onclick=()=>{ if(!window.pyodide) return; const names=[...pyodide.loadedPackages?.keys?.()||Object.keys(pyodide.loadedPackages||{})]; print('Loaded packages: '+Array.from(names).join(', ')); };
+    $('#install', contentEl).onclick=async()=>{ const p=prompt('pip install which package(s)?','requests'); if(p){ await pipInstall(p.split(/\s+/).filter(Boolean)); } };
+    inp.addEventListener('keydown',(e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); run(); } });
+  }
+});
+
+/* EXE Runner (DOS .exe/.com via js-dos). Windows .exe note. */
+async function ensureJsDos(){
+  if(window.Dos) return true;
+  const s=document.createElement('script'); s.src='https://js-dos.com/cdn/js-dos/js-dos.js'; const l=document.createElement('link'); l.rel='stylesheet'; l.href='https://js-dos.com/cdn/js-dos/js-dos.css';
+  document.head.appendChild(l);
+  await new Promise((res,rej)=>{ s.onload=res; s.onerror=rej; document.body.appendChild(s); });
+  return !!window.Dos;
+}
+registerApp({ id:'exe', name:'EXE Runner (DOS)', icon:icon('exe'),
+  open(){
+    const {contentEl}=createWindow({title:'EXE Runner (DOS) — js-dos', icon:icon('exe'), width:900, height:640, status:'Runs DOS .EXE/.COM. Windows .EXE requires Wine-based emulation which is experimental.'});
+    contentEl.innerHTML=`
+      <div class="toolbar">
+        <input type="file" id="pick" accept=".zip,.exe,.com,.bat"/>
+        <button class="btn ok" id="run">Run</button>
+        <span class="badge">Tip: For complex apps, zip the whole DOS folder and pick the .zip.</span>
+      </div>
+      <div id="dos" style="height:calc(100% - 110px); border:1px solid #ffffff22; border-radius:12px; overflow:hidden"></div>
+      <div class="status">Windows .exe are not natively supported in browsers. You can try projects like BoxedWine externally, but performance varies.</div>`;
+    let pending=null, dos=null;
+    $('#pick', contentEl).onchange=async()=>{ const f=$('#pick', contentEl).files[0]; if(!f) return; pending=f; toast('Selected: '+f.name); };
+    $('#run', contentEl).onclick=async()=>{
+      if(!pending){ toast('Pick a DOS .exe/.com/.bat or a .zip'); return; }
+      try{
+        const ok=await ensureJsDos(); if(!ok) { toast('Failed to load js-dos CDN'); return; }
+        const ui=$('#dos', contentEl); ui.innerHTML='';
+        const emu = await Dos(ui, { wdosboxUrl: 'https://js-dos.com/cdn/js-dos/wdosbox.js' });
+        dos=emu; const fs=await emu.fs();
+        const buf=await pending.arrayBuffer();
+        if(pending.name.toLowerCase().endsWith('.zip')){
+          await fs.extract(new Uint8Array(buf));
+          await emu.run(["-c", "dir", "-c", "pause"]);
+        } else {
+          // Put the single file into FS and try to run it
+          await fs.createFile(pending.name, new Uint8Array(buf));
+          const cmd = pending.name;
+          await emu.run(["-c", cmd]);
+        }
+      }catch(e){ toast('Error: '+e); }
+    };
+  }
+});
+
+/* Paint (trimmed) */
+registerApp({ id:'paint', name:'Paint', icon:icon('paint'),
+  open(){
+    const {contentEl}=createWindow({title:'Paint', icon:icon('paint'), width:980, height:620});
+    contentEl.innerHTML=`
+      <div class="toolbar">
+        <label>Tool <select id="tool"><option>Brush</option><option>Eraser</option><option>Line</option><option>Rect</option><option>Circle</option></select></label>
+        <label>Size <input type="range" id="size" min="1" max="50" value="8"/></label>
+        <input type="color" id="color" value="#27e0ff"/>
+        <button class="btn" id="clearC">Clear</button>
+        <button class="btn ok" id="save">Save</button>
+      </div>
+      <canvas id="cv" width="1000" height="580" style="touch-action:none"></canvas>`;
+    const cv=$('#cv', contentEl), ctx=cv.getContext('2d'); ctx.fillStyle='#0b0f1a'; ctx.fillRect(0,0,cv.width,cv.height);
+    const tool=$('#tool', contentEl), size=$('#size', contentEl), color=$('#color', contentEl);
+    let drawing=false, x0=0,y0=0, imgData=null;
+    const getXY=(e)=>{ const r=cv.getBoundingClientRect(); const x=(e.clientX-r.left)*cv.width/r.width; const y=(e.clientY-r.top)*cv.height/r.height; return [x,y]; };
+    cv.addEventListener('pointerdown',(e)=>{ drawing=true; [x0,y0]=getXY(e); imgData=ctx.getImageData(0,0,cv.width,cv.height); cv.setPointerCapture?.(e.pointerId); });
+    cv.addEventListener('pointerup',()=> drawing=false);
+    cv.addEventListener('pointermove',(e)=>{
+      if(!drawing) return; const [x,y]=getXY(e);
+      ctx.putImageData(imgData, 0, 0); ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle=(tool.value==='Eraser')?'#0b0f1a':color.value; ctx.lineWidth=+size.value;
+      if(tool.value==='Brush'||tool.value==='Eraser'){ ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x,y); ctx.stroke(); x0=x; y0=y; }
+      else if(tool.value==='Line'){ ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x,y); ctx.stroke(); }
+      else if(tool.value==='Rect'){ ctx.strokeRect(Math.min(x0,x), Math.min(y0,y), Math.abs(x-x0), Math.abs(y-y0)); }
+      else if(tool.value==='Circle'){ const r=Math.hypot(x-x0, y-y0); ctx.beginPath(); ctx.arc(x0,y0,r,0,Math.PI*2); ctx.stroke(); }
+    });
+    $('#clearC', contentEl).onclick=()=>{ ctx.fillStyle='#0b0f1a'; ctx.fillRect(0,0,cv.width,cv.height); };
+    $('#save', contentEl).onclick=()=>{ const p='/Pictures/paint-'+Date.now()+'.png'; writeFile(p, cv.toDataURL('image/png'), 'image/png'); toast('Saved to '+p); };
+  }
+});
+
+/* Video (trimmed) */
+registerApp({ id:'video', name:'Video Editor', icon:icon('video'),
+  open(){
+    const {contentEl}=createWindow({title:'Video Editor', icon:icon('video'), width:980, height:640});
+    contentEl.innerHTML=`
+      <div class="toolbar">
+        <input type="file" id="load" accept="video/*"/>
+        <label>Start <input type="range" id="start" min="0" max="100" value="0"/></label>
+        <label>End <input type="range" id="end" min="0" max="100" value="100"/></label>
+        <button class="btn ok" id="export">Export</button>
+      </div>
+      <video id="vid" playsinline controls style="max-width:100%; border:1px solid #ffffff22; border-radius:12px"></video>
+      <canvas id="vcan" width="960" height="540" style="display:none"></canvas>`;
+    const v=$('#vid', contentEl), start=$('#start', contentEl), end=$('#end', contentEl), cv=$('#vcan', contentEl), ctx=cv.getContext('2d');
+    function pickType(){ const opts=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']; for(const t of opts){ if(window.MediaRecorder && MediaRecorder.isTypeSupported(t)) return t; } return null; }
+    const type=pickType(); if(!type){ $('#export', contentEl).disabled=true; }
+    $('#load', contentEl).onchange=()=>{ const f=$('#load', contentEl).files[0]; if(!f) return; const url=URL.createObjectURL(f); v.src=url; v.onloadedmetadata=()=>{ start.max=end.max=Math.floor(v.duration*1000); start.value=0; end.value=Math.floor(v.duration*1000); }; };
+    $('#export', contentEl).onclick=async()=>{
+      if(!type) return; if(!v.src) return toast('Load a video first.'); const s=+start.value/1000, e=+end.value/1000; v.currentTime=s; await v.play();
+      const rec=new MediaRecorder(cv.captureStream(30), {mimeType:type}); const chunks=[]; rec.ondataavailable=(ev)=>{ if(ev.data.size) chunks.push(ev.data); }; rec.onstop=()=>{ const blob=new Blob(chunks,{type}); download(blob,'export.webm'); toast('Exported.'); };
+      rec.start(); const draw=()=>{ if(v.paused||v.ended) return; ctx.drawImage(v,0,0,cv.width,cv.height); if(v.currentTime>=e){ v.pause(); rec.stop(); return; } requestAnimationFrame(draw); }; requestAnimationFrame(draw);
+    };
+  }
+});
+
+/* Snake */
+registerApp({ id:'snake', name:'Snake', icon:icon('snake'),
+  open(){
+    const {contentEl}=createWindow({title:'Snake', icon:icon('snake'), width:520, height:580});
+    contentEl.innerHTML=`<div class="toolbar"><button class="btn ok" id="play">Start</button><span class="badge">Score: <span id="score">0</span></span><span class="badge">High: <span id="high">0</span></span></div><canvas id="c" width="480" height="480" style="touch-action:none"></canvas><div class="status">Arrow keys or swipe.</div>`;
+    const cv=$('#c', contentEl), ctx=cv.getContext('2d'); let grid=20, snake, dir, apple, score, speed, loop; const scoreEl=$('#score', contentEl), highEl=$('#high', contentEl);
+    function reset(){ snake=[{x:10,y:10}]; dir={x:1,y:0}; apple={x:15,y:10}; score=0; speed=120; scoreEl.textContent=0; if(loop) clearTimeout(loop); step(); }
+    function placeApple(){ apple={x:Math.floor(Math.random()*(cv.width/grid)), y:Math.floor(Math.random()*(cv.height/grid))}; }
+    function step(){ loop=setTimeout(()=>{ requestAnimationFrame(step); }, speed); const head={x:(snake[0].x+dir.x+cv.width/grid)%(cv.width/grid), y:(snake[0].y+dir.y+cv.height/grid)%(cv.height/grid)}; snake.unshift(head); if(head.x===apple.x&&head.y===apple.y){ score++; scoreEl.textContent=score; speed=Math.max(40, speed-4); placeApple(); } else snake.pop(); for(let i=1;i<snake.length;i++) if(snake[i].x===head.x&&snake[i].y===head.y){ gameOver(); return; } ctx.fillStyle='#0b0f1a'; ctx.fillRect(0,0,cv.width,cv.height); ctx.fillStyle='#0f0'; snake.forEach(p=>ctx.fillRect(p.x*grid,p.y*grid,grid-2,grid-2)); ctx.fillStyle='#f55'; ctx.fillRect(apple.x*grid,apple.y*grid,grid-2,grid-2); }
+    function gameOver(){ const hi=Math.max(+localStorage.getItem('snake_high')||0, score); localStorage.setItem('snake_high', hi); highEl.textContent=hi; toast('Game Over. Score '+score); if(loop) clearTimeout(loop); }
+    addEventListener('keydown', (e)=>{ if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) return; const d=({ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]})[e.key]; if(snake?.length>1 && (snake[1].x===snake[0].x+d[0] && snake[1].y===snake[0].y+d[1])) return; dir={x:d[0], y:d[1]}; });
+    let sx=0, sy=0; cv.addEventListener('pointerdown',(e)=>{ sx=e.clientX; sy=e.clientY; }); cv.addEventListener('pointerup',(e)=>{ const dx=e.clientX-sx, dy=e.clientY-sy; if(Math.abs(dx)>Math.abs(dy)){ dir={x: dx>0?1:-1, y:0}; } else { dir={x:0, y: dy>0?1:-1}; } });
+    $('#play', contentEl).onclick=()=>{ placeApple(); reset(); }; highEl.textContent=localStorage.getItem('snake_high')||0;
+  }
+});
+
+/* Calculator */
+registerApp({ id:'calc', name:'Calculator', icon:icon('calc'),
+  open(){ const {contentEl}=createWindow({title:'Calculator', icon:icon('calc'), width:320, height:420}); contentEl.innerHTML=`<input id="expr" placeholder="e.g. (2+3)*4" style="width:100%; font-size:1.2rem; margin-bottom:10px"/><div id="out" class="list" style="height:280px; padding:10px; overflow:auto"></div><div class="toolbar"><button class="btn ok" id="eval">Evaluate</button><button class="btn" id="clr">Clear</button></div>`; const out=$('#out', contentEl), expr=$('#expr', contentEl); const print=(s)=>{ const d=document.createElement('div'); d.textContent=s; out.appendChild(d); out.scrollTop=out.scrollHeight; }; $('#eval', contentEl).onclick=()=>{ try{ const r=Function('return ('+expr.value+')')(); print('= '+r); } catch(e){ print('Error: '+e.message); } }; $('#clr', contentEl).onclick=()=> out.innerHTML=''; }
+});
+
+/* Image Viewer */
+registerApp({ id:'image', name:'Image Viewer', icon:icon('image'),
+  open(arg){ const {contentEl}=createWindow({title:'Image Viewer', icon:icon('image'), width:900, height:620}); contentEl.innerHTML=`<div class="toolbar"><button class="btn" id="refresh">Refresh</button><span class="badge" id="count"></span></div><div id="grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px,1fr)); gap:10px"></div>`; const grid=$('#grid', contentEl), count=$('#count', contentEl); function showLightbox(src){ const lb=$('#lightbox'); $('img', lb).src = src; lb.style.display='flex'; lb.onclick=()=> lb.style.display='none'; } function collect(){ const imgs=[]; ['/Pictures','/Documents'].forEach(dir=> listDir(dir).forEach(it=>{ if(it.type==='file' && it.mime?.startsWith?.('image/')) imgs.push(dir+'/'+it.name); })); return imgs; } function render(sel=null){ grid.innerHTML=''; const imgs=collect(); count.textContent=imgs.length+' images'; imgs.forEach(p=>{ const node=getNode(p); const url=resolveFileURL(node)||node.content; const card=document.createElement('div'); card.style.border='1px solid #ffffff22'; card.style.borderRadius='10px'; card.style.padding='6px'; card.innerHTML=`<img src="${url}" alt="${p}" style="width:100%; border-radius:8px; cursor:zoom-in"/><div style="opacity:.8; margin-top:6px">${p.split('/').pop()}</div>`; card.querySelector('img').onclick=()=>showLightbox(url); grid.appendChild(card); }); if(sel){ const node=getNode(sel); const url=resolveFileURL(node)||node.content; if(url) showLightbox(url); } } $('#refresh', contentEl).onclick=()=>render(); render(arg && arg.path ? arg.path : null); }
+});
+
+/* Sticky Notes */
+registerApp({ id:'notes', name:'Sticky Notes', icon:icon('notes'),
+  open(){ const {contentEl}=createWindow({title:'Sticky Notes', icon:icon('notes'), width:480, height:480}); contentEl.innerHTML=`<div class="toolbar"><button class="btn ok" id="add">New Note</button></div><div id="wrap" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px"></div>`; const wrap=$('#wrap', contentEl); function render(){ wrap.innerHTML=''; const notes=JSON.parse(localStorage.getItem('nova_notes')||'[]'); notes.forEach((n,i)=>{ const card=document.createElement('div'); card.style.background='#fef08a22'; card.style.border='1px solid #ffffff33'; card.style.borderRadius='10px'; card.style.padding='8px'; card.innerHTML = `<textarea data-i="${i}" style="height:120px; width:100%; background:transparent">${n}</textarea><div class="toolbar" style="margin-top:6px"><button class="btn" data-d="${i}">Delete</button></div>`; card.querySelector('textarea').oninput=(e)=>save(e.target.dataset.i, e.target.value); card.querySelector('[data-d]').onclick=(e)=>{ del(e.target.dataset.d); render(); }; wrap.appendChild(card); }); } function save(i,v){ const notes=JSON.parse(localStorage.getItem('nova_notes')||'[]'); notes[i]=v; localStorage.setItem('nova_notes', JSON.stringify(notes)); } function del(i){ const notes=JSON.parse(localStorage.getItem('nova_notes')||'[]'); notes.splice(i,1); localStorage.setItem('nova_notes', JSON.stringify(notes)); } $('#add', contentEl).onclick=()=>{ const notes=JSON.parse(localStorage.getItem('nova_notes')||'[]'); notes.unshift('New note'); localStorage.setItem('nova_notes', JSON.stringify(notes)); render(); }; render(); }
+});
+
+/* Settings & Info */
+registerApp({ id:'settings', name:'Settings (Linux‑like)', icon:icon('settings'),
+  open(){ const {contentEl}=createWindow({title:'Settings — Linux‑style', icon:icon('settings'), width:680, height:520}); contentEl.innerHTML=`
+    <div class="grid" style="grid-template-columns:220px 1fr; gap:10px">
+      <div class="list" id="cats" style="min-height:360px"></div>
+      <div class="list" id="pane" style="min-height:360px; padding:10px"></div>
+    </div>`;
+    const cats=$('#cats', contentEl), pane=$('#pane', contentEl);
+    const SECTIONS=[
+      {id:'appearance', name:'Appearance', render(){ pane.innerHTML=`<div class="toolbar"><button class="btn ok" id="theme">Change theme</button></div><div>Wallpaper/Theme controls are simplified. Click to cycle theme.</div>`; $('#theme', pane).onclick=()=>switchTheme(); }},
+      {id:'keyboard', name:'Keyboard & Shortcuts', render(){ pane.innerHTML=`<div>Global shortcuts:</div><ul><li>Ctrl/⌘+W close</li><li>Ctrl/⌘+M minimize</li><li>Alt+Space window menu</li><li>Win/⌘ + ←/→ snap</li></ul>`; }},
+      {id:'time', name:'Date & Time', render(){ const now=new Date(); pane.innerHTML=`<div>Timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}</div><div>Now: ${now.toString()}</div>`; }},
+      {id:'privacy', name:'Privacy', render(){ pane.innerHTML=`<label><input type="checkbox" id="tele" /> Send anonymous telemetry (demo)</label>`; const key='nova_priv_tele'; $('#tele', pane).checked = localStorage.getItem(key)==='1'; $('#tele', pane).onchange=(e)=> localStorage.setItem(key, e.target.checked?'1':'0'); }},
+      {id:'about', name:'About', render(){ pane.innerHTML=`<div>NovaOS Hyper — single‑file web OS.</div><div>Note: A browser sandbox cannot control real Wi‑Fi, install Linux kernels, or run native Windows .exe files.</div>`; }}
+    ];
+    cats.innerHTML=SECTIONS.map(s=>`<div class="btn" data-id="${s.id}" style="display:block; margin:6px">${s.name}</div>`).join('');
+    cats.querySelectorAll('.btn').forEach(b=> b.onclick=()=> SECTIONS.find(s=>s.id===b.dataset.id).render());
+    SECTIONS[0].render();
+  }
+});
+registerApp({ id:'info', name:'System Info', icon:icon('info'),
+  open(){ const {contentEl}=createWindow({title:'About NovaOS Hyper', icon:icon('info'), width:580, height:380}); contentEl.innerHTML=`<div class="list" style="padding:12px"><div>Browser: ${navigator.userAgent}</div><div>Platform: ${navigator.platform}</div><div>Languages: ${navigator.languages?.join(', ')||'n/a'}</div><div>Timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}</div><div>Online: ${navigator.onLine}</div><div>Now: ${new Date().toString()}</div><div>Limits: Real Wi‑Fi control, Linux kernel/AUR installs, and native Windows .exe execution are outside a browser sandbox. We emulate what is safely possible.</div></div>`; }
+});
+
+/* App launcher */
+function openApp(id, arg){ const app=APPS.find(a=>a.id===id); if(!app) return toast('App not found: '+id); app.open(arg); }
+buildStartMenu();
+toast('NovaOS Hyper ready — Pop‑out Browser, Network Center, DOS EXE runner.');
+</script>
+</body>
+</html>
