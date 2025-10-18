@@ -58,31 +58,33 @@ yay -S asp
 ## Repository Layout
 
 ```
-rustpy-arch/
-├── README.md ← (this file)
-├── rustpy-arch-bootstrap.sh ← main bootstrap script
-├── initrs/ ← Rust “init” (PID 1) project
-│ ├── Cargo.toml
-│ └── src/
-│ └── main.rs
-├── python-scripts/
-│ ├── netconfig.py ← network‐config script
-│ └── installer.py ← graphical installer GUI
-├── rustpyde/
-│ ├── panel.py ← top panel (GTK)
-│ ├── network_tray.py ← network tray icon (GTK)
-│ ├── volume_tray.py ← volume tray icon (GTK)
-│ └── rustpyde-launcher ← simple launcher script
-├── rustpy-de-core/
-│ └── PKGBUILD ← meta‐package for the DE
-├── rustpy-gaming/
-│ └── PKGBUILD ← meta‐package for Gaming profile
-├── rustpy-office/
-│ └── PKGBUILD ← meta‐package for Office profile
-├── rustpy-dev/
-│ └── PKGBUILD ← meta‐package for Development profile
-└── rustpy-multimedia/
-└── PKGBUILD ← meta‐package for Multimedia profile
+├─ README.md
+├─ LICENSE
+├─ novaos/
+│  ├─ index.html                # UltraPlus mapeado para Pages
+│  ├─ NovaOS_UltraPlus.html
+│  ├─ NovaOS_Ultra.html
+│  ├─ NovaOS_Hyper.html
+│  └─ NovaOS_Pro_Windowing.html
+├─ distro/
+│  └─ rustpy-arch/
+│     ├─ README.md
+│     └─ rustpy-arch-bootstrap.sh
+├─ docs/
+│  ├─ ARCHITECTURE.md
+│  ├─ INSTALL.md
+│  └─ WORKFLOWS.md
+├─ .github/
+│  └─ ISSUE_TEMPLATE/
+│     ├─ bug_report.md
+│     └─ feature_request.md
+├─ .gitignore
+├─ CONTRIBUTING.md
+├─ CODE_OF_CONDUCT.md
+├─ SECURITY.md
+├─ ROADMAP.md
+└─ CHANGELOG.md
+
 ```
 
 
