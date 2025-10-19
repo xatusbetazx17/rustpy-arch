@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="theme-color" content="#0b0f1a"/>
+<title>NovaOS Ultra+ — Single‑File Web OS (Tabs + Py Terminal + Pro WM)</title>
+
+<!-- =============================================================
+     NovaOS Ultra+
+     - Pro-grade window manager (drag, resize on 8 handles, snap, Alt+Tab)
+     - Mobile first (windows become full-screen on small widths)
+     - Start menu + Spotlight + Command palette
+     - File system (localStorage) + import/export (File System Access API)
+     - Tabbed Browser (iframe w/ Open↗ fallback)
+     - Python Terminal via Pyodide + micropip ("pip install <pkg>" for pure-Python)
+     - Code editor (Ace), Notepad, Docs, Sheets, Paint
+     - Image viewer, Music player, Video player (basic trim via <canvas> fallback)
+     - Snake, Calculator
+     - Web‑App Installer (add any URL as a Start tile)
+     - Network Center (status + optional Web Bluetooth/USB pairing)
+     - Experimental: DOS player (js-dos) & Linux VM (v86) — if CDNs allow
+     - PWA-ready (optional service worker install in Settings)
+     ============================================================= -->
+
+<style>
+  :root{
+    --bg: radial-gradient(1200px 800px at 20% 20%, #2a2a72 0%, #009ffd 30%, #111 85%);
+    --glass: rgba(255,255,255,.08);
+    --glass-2: rgba(255,255,255,.12);
+    --text: #e8eef5;
+    --text-dim: #b9c6d3;
+    --accent: #00d1ff;
+    --ok:#33d17a; --warn:#f6d32d; --bad:#f66151;
+    --shadow: 0 16px 40px rgba(0,0,0,.40);
+    --radius: 14px;
+    --blur: 14px;
+    --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent}
+  html,body{height:100%;margin:0;color:var(--text);font-family:var(--font);background:#0b0f1a;overflow:hidden}
+  #desktop{ position:fixed; inset:0; background:var(--bg); background-attachment:fixed;}
+  .stars::before,.stars::after{ content:""; position:absolute; inset:0; pointer-events:none;
+    background:
+      radial-gradient(2px 2px at 20% 30%, #fff8, #0000 60%),
+      radial-gradient(1.5px 1.5px at 70% 80%, #fff6, #0000 60%),
+      radial-gradient(1.2px 1.2px at 55% 15%, #fff6, #0000 60%),
+      radial-gradient(1.8px 1.8px at 90% 50%, #fff8, #0000 60%);
+    mix-blend-mode: screen; filter: drop-shadow(0 0 6px #fff3);
+  }
+
+  /* Taskbar */
+  #taskbar{
+    position:fixed; left:calc(8px + var(--safe-left)); right:calc(8px + var(--safe-right)); bottom:calc(8px + var(--safe-bottom));
+    height:52px; display:flex; align-items:center; gap:8px; padding:8px 8px;
+    background:linear-gradient(#0a0e18dd,#04060add);
+    border:1px solid #ffffff1a; border-radius:14px; box-shadow: var(--shadow);
+    backdrop-filter: blur(var(--blur)); z-index: 100000;
+  }
+  .btnish{display:flex; align-items:center; justify-content:center; gap:8px; height:38px; border-radius:12px; padding:0 14px;
+    color:var(--text); border:1px solid #ffffff22; background:linear-gradient(var(--glass), transparent); cursor:pointer; user-select:none}
+  .btnish:active{transform:translateY(1px)}
+  #task-running{display:flex; gap:6px; flex:1; padding-left:6px; overflow-x:auto}
+  .task-icon{min-width:38px; padding:0 10px; position:relative; white-space:nowrap}
+  .task-icon.active{outline:2px solid #00d1ff55}
+  .dot{position:absolute; bottom:4px; left:calc(50% - 3px); width:6px; height:6px; border-radius:999px; background:#00e3ff}
+  #clock{margin-left:auto; font-variant-numeric:tabular-nums; opacity:.9}
+
+  /* Start Menu */
+  #startMenu{
+    position:fixed; left:calc(12px + var(--safe-left)); right:calc(12px + var(--safe-right)); bottom:calc(60px + var(--safe-bottom));
+    max-width:980px; margin:0 auto; max-height:72vh; overflow:auto; border:1px solid #ffffff22; border-radius:16px;
+    background:linear-gradient(180deg, #0b1222ee, #0a0f1acc); box-shadow: var(--shadow); display:none; padding:14px; z-index:100000;
+  }
+  .grid{display:grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap:12px}
+  .tile{display:flex; flex-direction:column; gap:8px; align-items:center; justify-content:center; border:1px dashed #ffffff24; border-radius:14px; padding:18px 10px; text-align:center; cursor:pointer; background:linear-gradient(180deg, #ffffff0e, #ffffff06); font-size:1rem}
+  .tile:hover{border-style:solid; border-color:#00d1ff55}
+  .section-title{margin:6px 2px 10px; color:var(--text-dim); font-size:.95rem}
+  .tile .small{font-size:.86rem; opacity:.86}
+
+  /* Windows */
+  .win{
+    position:absolute; min-width:300px; min-height:240px; border-radius:16px;
+    background:linear-gradient(180deg, #0c1426f0, #0b1220d8);
+    border:1px solid #ffffff22; box-shadow: var(--shadow);
+    overflow:hidden; display:flex; flex-direction:column;
+    transition: transform .18s ease, opacity .18s ease, box-shadow .18s ease;
+    will-change: transform, opacity, left, top, width, height;
+  }
+  .win.inactive{opacity:.96; box-shadow: 0 10px 24px rgba(0,0,0,.25)}
+  .win .title{
+    height:46px; display:flex; align-items:center; gap:10px; padding:0 10px;
+    background:linear-gradient(180deg, #0f1a31cc, #0b1327aa); border-bottom:1px solid #ffffff1c; user-select:none; touch-action:none;
+  }
+  .win .name{flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .wbtn{width:40px; height:30px; display:grid; place-items:center; border-radius:10px; cursor:pointer}
+  .wbtn:hover{background:#ffffff15}
+  .wbtn:active{transform:translateY(1px)}
+  .win .content{flex:1; overflow:auto; padding:12px}
+  .win .status{height:28px; font-size:.85rem; color:#cbd5e1aa; border-top:1px solid #ffffff1a; padding:4px 8px; display:flex; align-items:center; gap:10px}
+  .resize{position:absolute; opacity:0}
+  .resize.edge{position:absolute}
+  .resize.n{top:-2px; left:8px; right:8px; height:6px; cursor:ns-resize}
+  .resize.s{bottom:-2px; left:8px; right:8px; height:6px; cursor:ns-resize}
+  .resize.e{top:8px; bottom:8px; right:-2px; width:6px; cursor:ew-resize}
+  .resize.w{top:8px; bottom:8px; left:-2px; width:6px; cursor:ew-resize}
+  .resize.ne{top:-4px; right:-4px; width:12px; height:12px; cursor:nesw-resize}
+  .resize.nw{top:-4px; left:-4px; width:12px; height:12px; cursor:nwse-resize}
+  .resize.se{bottom:-4px; right:-4px; width:12px; height:12px; cursor:nwse-resize}
+  .resize.sw{bottom:-4px; left:-4px; width:12px; height:12px; cursor:nesw-resize}
+  .hidden{display:none !important}
+
+  /* Snap overlay */
+  #snapOverlay{position:fixed; inset:0; pointer-events:none; display:none; z-index: 99998}
+  .snapzone{position:absolute; border:2px dashed #00d1ff88; background:#00d1ff22; border-radius:12px}
+
+  /* Alt+Tab */
+  #altTab{position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); background:#0b1220ee; border:1px solid #ffffff22; border-radius:16px; box-shadow: var(--shadow); display:none; padding:12px; min-width:360px; z-index:99999}
+  #altTab .item{padding:8px 12px; border-radius:10px; border:1px solid #ffffff22; margin:6px 4px; display:flex; align-items:center; gap:8px}
+  #altTab .item.active{outline:2px solid #00d1ff88}
+
+  /* Spotlight & palette */
+  #spotlight, #palette{
+    position:fixed; left:50%; transform:translateX(-50%); top:7%; width:min(900px, 92vw);
+    background:#0b1220ee; border:1px solid #ffffff22; border-radius:16px; box-shadow:var(--shadow);
+    backdrop-filter: blur(var(--blur)); display:none; padding:14px; z-index:100001;
+  }
+  #spotlight input, #palette input{width:100%; font-size:1.1rem}
+  .results{margin-top:10px; max-height:56vh; overflow:auto}
+  .result{padding:10px 14px; border-radius:10px; display:flex; justify-content:space-between; border:1px solid #ffffff14; margin-bottom:6px; cursor:pointer}
+  .result:active{transform:translateY(1px)}
+
+  /* Notifications */
+  #toasts{position:fixed; right:calc(12px + var(--safe-right)); bottom:calc(64px + var(--safe-bottom)); display:flex; flex-direction:column; gap:8px; z-index:999999}
+  .toast{background:#0b1220ee; border:1px solid #ffffff22; border-radius:12px; padding:10px 12px; box-shadow: var(--shadow)}
+
+  /* Widgets */
+  #widgets{position:fixed; right:calc(16px + var(--safe-right)); top:calc(16px + var(--safe-top)); display:flex; gap:10px; z-index:1}
+  .widget{background:#0b1220cc; border:1px solid #ffffff25; border-radius:12px; padding:8px 12px; font-size:.9rem}
+
+  /* Lightbox */
+  #lightbox{position:fixed; inset:0; display:none; background:#000a; align-items:center; justify-content:center; z-index:100002}
+  #lightbox img{max-width:90vw; max-height:90vh; border-radius:12px; border:1px solid #ffffff22}
+
+  /* Mobile mode tweaks */
+  @media (max-width: 820px){
+    .win{border-radius:0; left:0 !important; top:0 !important; width:100vw !important; height:calc(100vh - 76px - var(--safe-bottom)) !important}
+    .win .title{height:56px}
+    #taskbar{height:70px}
+    .wbtn{width:48px; height:38px}
+    .tile{padding:16px 8px}
+  }
+
+  /* Small helpers */
+  .toolbar{display:flex; align-items:center; gap:8px; margin-bottom:8px}
+  .toolbar .btn, .btn{border:1px solid #ffffff22; background:linear-gradient(var(--glass), transparent); color:var(--text); border-radius:10px; padding:8px 12px; cursor:pointer}
+  .btn.ok{border-color:#00d1ff55}
+  .btn.warn{border-color:#f6d32d77}
+  .btn.bad{border-color:#f6615177}
+  input, textarea, select{background:#0b1220; color:var(--text); border:1px solid #ffffff22; border-radius:10px; padding:8px 10px; outline:none}
+  textarea{width:100%; height:calc(100% - 48px); resize:none}
+  table.sheet{border-collapse:collapse; width:100%}
+  table.sheet td, table.sheet th{border:1px solid #ffffff22; padding:6px; min-width:80px}
+  .kbd{background:#111a; border:1px solid #fff2; padding:2px 6px; border-radius:6px; font-family:var(--mono)}
+  .hint{opacity:.8; font-size:.92rem}
+</style>
+</head>
+
+<body>
+  <div id="desktop" class="stars" tabindex="-1"></div>
+
+  <div id="widgets">
+    <div class="widget" id="sysinfo">GPU: <span id="gpu">n/a</span> • Net: <span id="net">…</span></div>
+  </div>
+
+  <!-- Start menu -->
+  <div id="startMenu">
+    <div class="section-title">Pinned apps</div>
+    <div class="grid" id="startGrid"></div>
+    <div class="section-title">System</div>
+    <div class="grid" id="systemGrid"></div>
+  </div>
+
+  <!-- Spotlight / Palette -->
+  <div id="spotlight">
+    <input id="spotlightInput" placeholder="Search files & apps (⌘/Ctrl + Space)" />
+    <div class="results" id="spotlightResults"></div>
+  </div>
+  <div id="palette">
+    <input id="paletteInput" placeholder="Type a command (Ctrl/⌘ + K • Alt+Space menu)" />
+    <div class="results" id="paletteResults"></div>
+  </div>
+
+  <!-- Toasts / Lightbox / SnapOverlay / AltTab -->
+  <div id="toasts"></div>
+  <div id="lightbox"><img alt="preview"/></div>
+  <div id="snapOverlay">
+    <div class="snapzone" id="snapLeft"></div>
+    <div class="snapzone" id="snapRight"></div>
+    <div class="snapzone" id="snapTL"></div>
+    <div class="snapzone" id="snapTR"></div>
+    <div class="snapzone" id="snapBL"></div>
+    <div class="snapzone" id="snapBR"></div>
+  </div>
+  <div id="altTab"></div>
+
+  <!-- Taskbar -->
+  <div id="taskbar">
+    <div id="startBtn" class="btnish">🟦 Start</div>
+    <div id="searchBtn" class="btnish">🔎 Search</div>
+    <div id="task-running"></div>
+    <div class="tray-btn btnish" id="networkCenter">📶 Network</div>
+    <div class="tray-btn btnish" id="installApp">➕ Install web‑app</div>
+    <div class="tray-btn btnish" id="themeSwitch">🎨 Theme</div>
+    <div class="tray-btn btnish" id="quickShot">📸 Shot</div>
+    <div id="clock"></div>
+  </div>
+
+  <!-- CDNs (lazy‑loaded when apps open) -->
+  <script>
+    // simple lazy loader
+    const _loaded = new Set();
+    function loadScript(src){
+      return new Promise((resolve, reject)=>{
+        if(_loaded.has(src)) return resolve();
+        const s=document.createElement('script');
+        s.src=src; s.async=true; s.onload=()=>{ _loaded.add(src); resolve(); }; s.onerror=()=>reject(new Error('Failed '+src));
+        document.head.appendChild(s);
+      });
+    }
+    function loadCSS(href){
+      return new Promise((resolve,reject)=>{
+        if(_loaded.has(href)) return resolve();
+        const l=document.createElement('link'); l.rel='stylesheet'; l.href=href;
+        l.onload=()=>{ _loaded.add(href); resolve(); }; l.onerror=()=>reject(new Error('Failed '+href));
+        document.head.appendChild(l);
+      });
+    }
+  </script>
+
+  <!-- Preload tiny libs used across apps -->
+  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.36.2/src-min-noconflict/ace.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.36.2/src-min-noconflict/ext-language_tools.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+<script>
+/* ============================================================
+   NovaOS Ultra+ — Pro WM + Apps
+   ============================================================ */
+
+const $ = (sel, root=document) => root.querySelector(sel);
+const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
+const uuid = () => 'w' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+const isMobile = ()=> window.matchMedia('(max-width: 820px)').matches || /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const toast = (msg, timeout=3200) => { const t=document.createElement('div'); t.className='toast'; t.textContent=msg; $('#toasts').appendChild(t); setTimeout(()=>t.remove(), timeout); };
+const nowStr = ()=> new Date().toLocaleString();
+const download = (blob, filename)=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); };
+const clamp=(v,min,max)=>Math.max(min, Math.min(max, v));
+
+// Widgets
+function updateWidgets(){
+  $('#net').textContent = navigator.onLine ? 'Online' : 'Offline';
+  try{
+    const gl = document.createElement('canvas').getContext('webgl'); const dbg = gl && gl.getExtension('WEBGL_debug_renderer_info');
+    $('#gpu').textContent = (gl && dbg) ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : 'n/a';
+  }catch(e){ $('#gpu').textContent = 'n/a'; }
+}
+updateWidgets(); addEventListener('online', updateWidgets); addEventListener('offline', updateWidgets);
+
+// Clock
+setInterval(()=>{ const d = new Date(); $('#clock').textContent = d.toLocaleString([], {hour:'2-digit', minute:'2-digit'}) + '  ' + d.toLocaleDateString(); }, 1000);
+
+// Theming
+const THEMES=[
+  {name:'Aurora', bg:'radial-gradient(1200px 800px at 20% 20%, #2a2a72 0%, #009ffd 30%, #111 85%)', accent:'#00d1ff'},
+  {name:'Sunset', bg:'radial-gradient(1100px 760px at 20% 30%, #ff7e5f 0%, #feb47b 35%, #0b0f1a 85%)', accent:'#ffd166'},
+  {name:'Emerald', bg:'radial-gradient(1100px 760px at 50% 30%, #093028 0%, #237a57 35%, #0b0f1a 85%)', accent:'#5af7b0'},
+  {name:'Noir', bg:'radial-gradient(1000px 700px at 75% 25%, #0f0c29 0%, #302b63 35%, #24243e 85%)', accent:'#9a86fd'},
+];
+function applyTheme(i){ const t=THEMES[i]; document.documentElement.style.setProperty('--bg', t.bg); document.documentElement.style.setProperty('--accent', t.accent); localStorage.setItem('nova_theme_idx', i); }
+function switchTheme(){ const idx=+localStorage.getItem('nova_theme_idx')||0; applyTheme((idx+1)%THEMES.length); }
+applyTheme(+localStorage.getItem('nova_theme_idx')||0);
+$('#themeSwitch').onclick=switchTheme;
+
+// Virtual FS (localStorage)
+const VFS_KEY='nova_vfs_ultraplus';
+const initFS=()=>({type:'dir',name:'/',children:{
+  Desktop:{type:'dir',name:'Desktop',children:{}},
+  Documents:{type:'dir',name:'Documents',children:{}},
+  Pictures:{type:'dir',name:'Pictures',children:{}},
+  Videos:{type:'dir',name:'Videos',children:{}},
+  Music:{type:'dir',name:'Music',children:{}},
+}});
+let VFS=null;
+function loadFS(){ try{ VFS=JSON.parse(localStorage.getItem(VFS_KEY))||initFS(); }catch(e){ VFS=initFS(); } }
+function saveFS(){ try{ localStorage.setItem(VFS_KEY, JSON.stringify(VFS)); }catch(e){ toast('Storage full or blocked.'); } }
+function pathParts(p){ return p.split('/').filter(Boolean); }
+function getNode(path){ if(path==='/'||!path) return VFS; let cur=VFS; for(const seg of pathParts(path)){ if(!cur.children||!cur.children[seg]) return null; cur=cur.children[seg]; } return cur; }
+function ensureDir(path){ let cur=VFS; for(const seg of pathParts(path)){ if(!cur.children[seg]) cur.children[seg]={type:'dir',name:seg,children:{}}; cur=cur.children[seg]; } return cur; }
+function listDir(path){ const n=getNode(path); if(!n||n.type!=='dir') return []; return Object.values(n.children).sort((a,b)=>a.type===b.type? a.name.localeCompare(b.name) : a.type==='dir'?-1:1); }
+function writeFile(path, content, mime='text/plain'){ const parts=pathParts(path); const name=parts.pop(); const dir=ensureDir('/'+parts.join('/')); dir.children[name]={type:'file',name, mime, size: (typeof content==='string'?content.length:0), content, created:Date.now(), modified:Date.now()}; saveFS(); }
+function renameNode(path, newName){ const parts=pathParts(path); const nm=parts.pop(); const dir=getNode('/'+parts.join('/')); if(!dir||!dir.children[nm]) return false; const node=dir.children[nm]; delete dir.children[nm]; node.name=newName; dir.children[newName]=node; saveFS(); return true; }
+function deleteNode(path){ const parts=pathParts(path); const nm=parts.pop(); const dir=getNode('/'+parts.join('/')); if(dir&&dir.children[nm]){ delete dir.children[nm]; saveFS(); return true; } return false; }
+loadFS();
+async function fileToDataURL(file){ return new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(file); }); }
+function resolveFileURL(node){ if(!node) return null; if(typeof node.content==='string' && node.content.startsWith('data:')) return node.content; if(typeof node.content==='string' && node.content.startsWith('{')){ try{ const j=JSON.parse(node.content); if(j.url) return j.url; }catch(e){} } return null; }
+
+/* ---------- Window Manager (Pro, reliable buttons) ---------- */
+const WM={ z:10, wins:new Map(), tasks:new Map(), activeId:null };
+function setActive(id){
+  $$('.win').forEach(w=>w.classList.add('inactive'));
+  if(id){
+    const w=WM.wins.get(id); if(!w) return;
+    w.el.classList.remove('inactive');
+    bringToFront(id);
+  }
+  WM.activeId=id||null;
+}
+function bringToFront(id){
+  WM.z+=2; const w=WM.wins.get(id); if(!w) return; w.el.style.zIndex=WM.z;
+  $$('.task-icon').forEach(t=>t.classList.remove('active'));
+  const task=WM.tasks.get(id); if(task) task.classList.add('active');
+}
+function animateTo(el, r1, r2, {opacityFrom=1, opacityTo=1, dur=180}={}){
+  el.animate([{transform:`translate(0,0) scale(1,1)`,opacity:opacityFrom},{transform:`translate(${r2.left-r1.left}px,${r2.top-r1.top}px) scale(${r2.width/r1.width},${r2.height/r1.height})`,opacity:opacityTo}],{duration:dur,easing:'ease'});
+}
+function minimizeWindow(id){ const w=WM.wins.get(id); if(!w) return; const el=w.el; const task=WM.tasks.get(id); const r1=el.getBoundingClientRect(), r2=task.getBoundingClientRect(); animateTo(el,r1,r2,{opacityTo:.2}); setTimeout(()=>{ el.classList.add('hidden'); task.classList.remove('active'); w.state='min'; },180); }
+function restoreWindow(id){ const w=WM.wins.get(id); if(!w) return; const el=w.el; const task=WM.tasks.get(id); const r1=task.getBoundingClientRect(); el.classList.remove('hidden'); bringToFront(id); const r2=el.getBoundingClientRect(); animateTo(el,r1,r2,{opacityFrom:.2}); setActive(id); w.state='normal'; }
+function maximizeWindow(id){
+  const w=WM.wins.get(id); if(!w) return; const el=w.el; if(isMobile()) return;
+  if(!el.dataset.prev) el.dataset.prev=JSON.stringify({left:el.style.left, top:el.style.top, width:el.style.width, height:el.style.height});
+  const before=el.getBoundingClientRect();
+  el.style.left='8px'; el.style.top='8px'; el.style.width=(innerWidth-16)+'px'; el.style.height=(innerHeight-90)+'px';
+  animateTo(el,before,el.getBoundingClientRect()); w.state='max';
+}
+function unmaximizeWindow(id){
+  const w=WM.wins.get(id); if(!w) return; const el=w.el; if(!el.dataset.prev) return;
+  const prev=JSON.parse(el.dataset.prev); const before=el.getBoundingClientRect();
+  el.style.left=prev.left; el.style.top=prev.top; el.style.width=prev.width; el.style.height=prev.height;
+  animateTo(el,before,el.getBoundingClientRect()); w.state='normal';
+}
+function toggleMax(id){ const w=WM.wins.get(id); if(!w) return; if(w.state==='max') unmaximizeWindow(id); else maximizeWindow(id); }
+function closeWindow(id){
+  const w=WM.wins.get(id); if(!w) return; const el=w.el;
+  el.animate([{opacity:1, transform:'scale(1)'},{opacity:0, transform:'scale(.96)'}], {duration:140, easing:'ease-out'}).onfinish=()=>{
+    el.remove(); const t=WM.tasks.get(id); if(t) t.remove(); WM.wins.delete(id); WM.tasks.delete(id); setActive(null);
+  };
+}
+function createWindow({title, icon='🗔', width=860, height=580, x=24, y=24, content='', status='', singleInstanceKey=null}){
+  if(singleInstanceKey){
+    for(const [id,w] of WM.wins){ if(w.key===singleInstanceKey){ restoreWindow(id); setActive(id); return {id, el:w.el, contentEl:$('.content', w.el)}; } }
+  }
+  const id=uuid();
+  const el=document.createElement('div'); el.className='win inactive'; el.dataset.id=id;
+  if(isMobile()){ el.style.left='0px'; el.style.top='0px'; el.style.width='100vw'; el.style.height='calc(100vh - 80px - env(safe-area-inset-bottom))'; }
+  else { el.style.left=x+'px'; el.style.top=y+'px'; el.style.width=width+'px'; el.style.height=height+'px'; }
+  el.innerHTML=`
+    <div class="title" role="toolbar">
+      <div class="wbtn" data-act="menu" title="Menu">☰</div>
+      <div class="name"><span style="margin-right:8px">${icon}</span>${title}</div>
+      <div class="wbtn" data-act="min" title="Minimize">—</div>
+      <div class="wbtn" data-act="max" title="Maximize">▢</div>
+      <div class="wbtn" data-act="close" title="Close">✕</div>
+    </div>
+    <div class="content"></div>
+    <div class="status">${status}</div>
+    <div class="resize edge n" data-edge="n"></div>
+    <div class="resize edge s" data-edge="s"></div>
+    <div class="resize edge e" data-edge="e"></div>
+    <div class="resize edge w" data-edge="w"></div>
+    <div class="resize ne" data-edge="ne"></div>
+    <div class="resize nw" data-edge="nw"></div>
+    <div class="resize se" data-edge="se"></div>
+    <div class="resize sw" data-edge="sw"></div>
+  `;
+  $('#desktop').appendChild(el);
+  const cont=$('.content', el); cont.innerHTML=content;
+  const wrec = {el, title, icon, state:'normal', key: singleInstanceKey||null};
+  WM.wins.set(id, wrec);
+
+  const task=document.createElement('div'); task.className='task-icon'; task.innerHTML=`<span style="margin-right:6px">${icon}</span> <span class="tname">${title}</span> <span class="dot"></span>`;
+  task.addEventListener('click',()=>{ const isMin=el.classList.contains('hidden'); if(isMin) restoreWindow(id); else minimizeWindow(id); });
+  task.addEventListener('contextmenu',(e)=>{ e.preventDefault(); taskMenu(e.clientX, e.clientY, id); });
+  $('#task-running').appendChild(task); WM.tasks.set(id, task);
+
+  el.style.opacity=0; el.animate([{opacity:0, transform:'scale(.98)'},{opacity:1, transform:'scale(1)'}], {duration:160, easing:'ease-out'}).onfinish=()=>{ el.style.opacity=1; };
+  setActive(id);
+
+  // Dragging (no accidental maximize on move)
+  const titleBar=$('.title', el);
+  let dragging=false, ox=0, oy=0, moved=false, startX=0, startY=0;
+  titleBar.addEventListener('pointerdown',(e)=>{
+    if(e.pointerType==='mouse' && e.button!==0) return;
+    if(e.target.closest('.wbtn')) return;
+    setActive(id); moved=false;
+    if(!isMobile()){
+      if(wrec.state==='max'){ // restore under cursor then drag
+        const prev=el.dataset.prev? JSON.parse(el.dataset.prev) : {width:(innerWidth*0.7)+'px', height:(innerHeight*0.7)+'px', left:'60px', top:'40px'};
+        el.style.width=prev.width; el.style.height=prev.height;
+        const rect=el.getBoundingClientRect();
+        el.style.left = (e.clientX - rect.width*0.5) + 'px';
+        el.style.top  = (e.clientY - 16) + 'px';
+        wrec.state='normal';
+      }
+      dragging=true; el.setPointerCapture?.(e.pointerId);
+      ox=e.clientX - el.offsetLeft; oy=e.clientY - el.offsetTop; startX=e.clientX; startY=e.clientY;
+      showSnapOverlay();
+    }
+  });
+  titleBar.addEventListener('pointermove',(e)=>{
+    if(!dragging) return;
+    moved=moved || Math.hypot(e.clientX-startX, e.clientY-startY)>6;
+    const nx=clamp(e.clientX-ox,4,innerWidth-4), ny=clamp(e.clientY-oy,4,innerHeight-96);
+    el.style.left=nx+'px'; el.style.top=ny+'px';
+    highlightSnap(nx, ny, el.offsetWidth, el.offsetHeight);
+  });
+  titleBar.addEventListener('pointerup',()=>{ if(!dragging) return; dragging=false; hideSnapOverlay(); performSnap(el); });
+  titleBar.addEventListener('dblclick',()=>{ if(!moved) toggleMax(id); });
+  el.addEventListener('pointerdown', ()=> setActive(id));
+
+  // Resize
+  $$('.resize', el).forEach(h=>{
+    let resizing=false, rx=0, ry=0, rw=0, rh=0, rl=0, rt=0, edge=h.dataset.edge;
+    h.addEventListener('pointerdown',(e)=>{ resizing=true; el.setPointerCapture?.(e.pointerId); rx=e.clientX; ry=e.clientY; rw=el.offsetWidth; rh=el.offsetHeight; rl=el.offsetLeft; rt=el.offsetTop; setActive(id); });
+    h.addEventListener('pointermove',(e)=>{
+      if(!resizing) return;
+      let dx=e.clientX-rx, dy=e.clientY-ry;
+      if(edge.includes('e')) el.style.width=Math.max(300, rw+dx)+'px';
+      if(edge.includes('s')) el.style.height=Math.max(240, rh+dy)+'px';
+      if(edge.includes('w')){ const nw=Math.max(300, rw-dx); el.style.left=(rl+(rw-nw))+'px'; el.style.width=nw+'px'; }
+      if(edge.includes('n')){ const nh=Math.max(240, rh-dy); el.style.top=(rt+(rh-nh))+'px'; el.style.height=nh+'px'; }
+    });
+    h.addEventListener('pointerup',()=>{ resizing=false; });
+  });
+
+  // Buttons (reliable)
+  el.addEventListener('click',(e)=>{
+    const btn=e.target.closest('.wbtn'); if(!btn) return;
+    const act=btn.dataset.act;
+    if(act==='close') closeWindow(id);
+    if(act==='min') minimizeWindow(id);
+    if(act==='max') toggleMax(id);
+    if(act==='menu'){ windowMenu(el, id); }
+  });
+
+  return {id, el, contentEl: cont};
+}
+function windowMenu(el, id){
+  const m=document.createElement('div');
+  Object.assign(m.style,{position:'absolute', right:'10px', top:'46px', zIndex:999999, background:'#0b1220', border:'1px solid #ffffff22', borderRadius:'12px', padding:'6px'});
+  m.innerHTML=`<div class="btn" data-a="restore">Restore</div><div class="btn" data-a="min">Minimize</div><div class="btn" data-a="max">Maximize</div><div class="btn" data-a="close">Close</div>`;
+  el.appendChild(m);
+  m.addEventListener('click',(e)=>{ const a=e.target.closest('.btn')?.dataset?.a; if(!a) return; if(a==='restore') restoreWindow(id); if(a==='min') minimizeWindow(id); if(a==='max') maximizeWindow(id); if(a==='close') closeWindow(id); m.remove(); });
+  addEventListener('pointerdown',(e)=>{ if(!m.contains(e.target)) m.remove(); }, {once:true});
+}
+function taskMenu(x,y,id){
+  const m=document.createElement('div');
+  Object.assign(m.style,{position:'fixed', left:x+'px', top:y+'px', zIndex:999999, background:'#0b1220', border:'1px solid #ffffff22', borderRadius:'12px', padding:'6px'});
+  m.innerHTML=`<div class="btn" data-a="restore">Restore</div><div class="btn" data-a="min">Minimize</div><div class="btn" data-a="close">Close</div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click',(e)=>{ const a=e.target.closest('.btn')?.dataset?.a; if(!a) return; if(a==='restore') restoreWindow(id); if(a==='min') minimizeWindow(id); if(a==='close') closeWindow(id); m.remove(); });
+  addEventListener('pointerdown',(e)=>{ if(!m.contains(e.target)) m.remove(); }, {once:true});
+}
+
+/* Snap overlay */
+function showSnapOverlay(){
+  const o=$('#snapOverlay'); o.style.display='block';
+  const W=innerWidth, H=innerHeight-90, B=8, M=12;
+  const left=$('#snapLeft'), right=$('#snapRight'), tl=$('#snapTL'), tr=$('#snapTR'), bl=$('#snapBL'), br=$('#snapBR');
+  Object.assign(left.style, {left:B+'px', top:B+'px', width:(W/2 - M)+'px', height:(H - B*2)+'px'});
+  Object.assign(right.style,{right:B+'px', top:B+'px', width:(W/2 - M)+'px', height:(H - B*2)+'px'});
+  const qW=W/2 - M, qH=H/2 - M;
+  Object.assign(tl.style, {left:B+'px', top:B+'px', width:qW+'px', height:qH+'px'});
+  Object.assign(tr.style, {right:B+'px', top:B+'px', width:qW+'px', height:qH+'px'});
+  Object.assign(bl.style, {left:B+'px', bottom: (80+ B)+'px', width:qW+'px', height:qH+'px', position:'fixed'});
+  Object.assign(br.style, {right:B+'px', bottom: (80+ B)+'px', width:qW+'px', height:qH+'px', position:'fixed'});
+}
+function hideSnapOverlay(){ $('#snapOverlay').style.display='none'; highlight(null); }
+let currentSnap=null;
+function highlightSnap(x,y,w,h){
+  const thresh=32, W=innerWidth, H=innerHeight-90;
+  if(x<thresh){ highlight('left'); return; }
+  if(x+w>W-thresh){ highlight('right'); return; }
+  if(x<thresh && y<thresh){ highlight('tl'); return; }
+  if(x+w>W-thresh && y<thresh){ highlight('tr'); return; }
+  if(x<thresh && y+h>H-thresh){ highlight('bl'); return; }
+  if(x+w>W-thresh && y+h>H-thresh){ highlight('br'); return; }
+  highlight(null);
+}
+function highlight(zone){
+  currentSnap=zone;
+  $$('#snapOverlay .snapzone').forEach(z=>z.style.outline = '');
+  if(!zone) return;
+  const map={left:'#snapLeft', right:'#snapRight', tl:'#snapTL', tr:'#snapTR', bl:'#snapBL', br:'#snapBR'};
+  $(map[zone]).style.outline='3px solid #00d1ff';
+}
+function performSnap(el){
+  if(!currentSnap) return false;
+  const W=innerWidth, H=innerHeight-90, B=8, M=12;
+  if(currentSnap==='left'){ el.style.left=B+'px'; el.style.top=B+'px'; el.style.width=(W/2 - M)+'px'; el.style.height=(H - B*2)+'px'; }
+  if(currentSnap==='right'){ el.style.left=(W/2 + 4)+'px'; el.style.top=B+'px'; el.style.width=(W/2 - M)+'px'; el.style.height=(H - B*2)+'px'; }
+  const qW=W/2 - M, qH=H/2 - M;
+  if(currentSnap==='tl'){ el.style.left=B+'px'; el.style.top=B+'px'; el.style.width=qW+'px'; el.style.height=qH+'px'; }
+  if(currentSnap==='tr'){ el.style.left=(W - qW - B)+'px'; el.style.top=B+'px'; el.style.width=qW+'px'; el.style.height=qH+'px'; }
+  if(currentSnap==='bl'){ el.style.left=B+'px'; el.style.top=(H - qH - B)+'px'; el.style.width=qW+'px'; el.style.height=qH+'px'; }
+  if(currentSnap==='br'){ el.style.left=(W - qW - B)+'px'; el.style.top=(H - qH - B)+'px'; el.style.width=qW+'px'; el.style.height=qH+'px'; }
+  currentSnap=null; return true;
+}
+
+/* Alt+Tab */
+let altTabVisible=false, altTabIndex=0;
+function showAltTab(){
+  const list=[...WM.wins.entries()].filter(([id,w])=>!w.el.classList.contains('hidden'));
+  if(!list.length) return; const at=$('#altTab'); at.innerHTML='';
+  list.forEach(([id,w],i)=>{ const d=document.createElement('div'); d.className='item'+(i===0?' active':''); d.dataset.id=id; d.innerHTML=`<span style="font-size:20px">${w.icon}</span> ${w.title}`; at.appendChild(d); });
+  at.style.display='block'; altTabVisible=true; altTabIndex=0;
+}
+function cycleAltTab(dir=1){ if(!altTabVisible) showAltTab(); const items=$$('#altTab .item'); if(!items.length) return; items.forEach(i=>i.classList.remove('active')); altTabIndex=(altTabIndex+dir+items.length)%items.length; items[altTabIndex].classList.add('active'); }
+function commitAltTab(){ const items=$$('#altTab .item'); if(!items.length) return; const id=items[altTabIndex].dataset.id; $('#altTab').style.display='none'; altTabVisible=false; restoreWindow(id); setActive(id); }
+document.addEventListener('keydown',(e)=>{
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='w'){ if(WM.activeId){ e.preventDefault(); closeWindow(WM.activeId);} }
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='m'){ if(WM.activeId){ e.preventDefault(); minimizeWindow(WM.activeId);} }
+  if(e.altKey&&e.code==='Space'){ e.preventDefault(); if(WM.activeId){ const w=WM.wins.get(WM.activeId); if(w) windowMenu(w.el, WM.activeId);} }
+  if(e.altKey&&e.code==='Tab'){ e.preventDefault(); cycleAltTab(1); }
+  if(e.key==='Alt'){ if(!altTabVisible) showAltTab(); }
+  if(e.metaKey&&e.code==='ArrowLeft'){ e.preventDefault(); const w=WM.wins.get(WM.activeId); if(!w) return; highlight('left'); performSnap(w.el); }
+  if(e.metaKey&&e.code==='ArrowRight'){ e.preventDefault(); const w=WM.wins.get(WM.activeId); if(!w) return; highlight('right'); performSnap(w.el); }
+  if(e.metaKey&&e.code==='ArrowUp'){ e.preventDefault(); if(WM.activeId) maximizeWindow(WM.activeId); }
+  if(e.metaKey&&e.code==='ArrowDown'){ e.preventDefault(); if(WM.activeId) unmaximizeWindow(WM.activeId); }
+});
+document.addEventListener('keyup',(e)=>{ if(e.key==='Alt' && altTabVisible){ commitAltTab(); } });
+
+/* Start / Spotlight / Palette */
+const APPS=[]; const registerApp=(a)=>APPS.push(a);
+function buildStartMenu(){
+  const pinned=['browser','explorer','notepad','code','terminal','docs','sheets','paint','video','snake','calc','music','image','notes','dos','linux','settings','info'];
+  const system=['settings','info'];
+  const g=$('#startGrid'); g.innerHTML=''; const s=$('#systemGrid'); s.innerHTML='';
+  function addTile(app, grid){ const t=document.createElement('div'); t.className='tile'; t.innerHTML=`<div style="font-size:28px">${app.icon}</div><div>${app.name}</div><div class="small">${app.tag||''}</div>`; t.onclick=()=>{ openApp(app.id); toggleStart(false); }; grid.appendChild(t); }
+  pinned.forEach(id=>{ const a=APPS.find(x=>x.id===id); if(a) addTile(a, g); });
+  system.forEach(id=>{ const a=APPS.find(x=>x.id===id); if(a) addTile(a, s); });
+  // user-installed web apps
+  const installed = JSON.parse(localStorage.getItem('nova_webapps')||'[]');
+  installed.forEach(app=>{
+    const t=document.createElement('div'); t.className='tile'; t.innerHTML=`<div style="font-size:24px">🧩</div><div>${app.name}</div><div class="small">${new URL(app.url).host}</div>`;
+    t.onclick=()=>openWebApp(app); g.appendChild(t);
+  });
+}
+function toggleStart(force){ const m=$('#startMenu'); if(force===true) m.style.display='block'; else if(force===false) m.style.display='none'; else m.style.display= m.style.display==='block'?'none':'block'; }
+$('#startBtn').onclick=()=>toggleStart();
+$('#searchBtn').onclick=()=>openSpotlight();
+
+function openSpotlight(){ $('#spotlight').style.display='block'; const i=$('#spotlightInput'); i.value=''; i.focus(); renderSpotlight(''); }
+function renderSpotlight(q){
+  const res=$('#spotlightResults'); res.innerHTML='';
+  const all=[]; (function walk(p, n){ if(n.type==='dir'){ for(const k in n.children) walk((p? p+'/'+k : '/'+k), n.children[k]); } else all.push({path:p, node:n}); })('', VFS);
+  all.filter(f=>f.path.toLowerCase().includes(q.toLowerCase())).slice(0,20).forEach(f=>{
+    const r=document.createElement('div'); r.className='result'; r.innerHTML=`<div>📄 ${f.path}</div><div class="badge">file</div>`; r.onclick=()=>{ openFile(f.path); $('#spotlight').style.display='none'; }; res.appendChild(r);
+  });
+  APPS.filter(a=>a.name.toLowerCase().includes(q.toLowerCase())).forEach(app=>{
+    const r=document.createElement('div'); r.className='result'; r.innerHTML=`<div>${app.icon} ${app.name}</div><div class="badge">app</div>`; r.onclick=()=>{ openApp(app.id); $('#spotlight').style.display='none'; }; res.appendChild(r);
+  });
+}
+$('#spotlightInput').addEventListener('input', (e)=>renderSpotlight(e.target.value));
+document.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()===' ') { e.preventDefault(); openSpotlight(); } });
+
+function openPalette(){ $('#palette').style.display='block'; const i=$('#paletteInput'); i.value=''; i.focus(); renderPalette(''); }
+function renderPalette(q){
+  const actions=[
+    {name:'Open File Explorer', run:()=>openApp('explorer')},
+    {name:'New Text File in Documents', run:()=>{ const p='/Documents/new-'+Date.now()+'.txt'; writeFile(p,''); openApp('notepad', p); }},
+    {name:'Switch Theme', run:()=>switchTheme()},
+    {name:'Take Desktop Screenshot', run:async()=>{ if(window.html2canvas){ const c=await html2canvas($('#desktop'),{backgroundColor:null,scale:2}); c.toBlob(b=>download(b,'desktop.png')); } else toast('Screenshot not supported here.'); }},
+  ];
+  const res=$('#paletteResults'); res.innerHTML=''; actions.filter(a=>a.name.toLowerCase().includes(q.toLowerCase())).forEach(a=>{ const r=document.createElement('div'); r.className='result'; r.textContent=a.name; r.onclick=()=>{ a.run(); $('#palette').style.display='none'; }; res.appendChild(r); });
+}
+document.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k') { e.preventDefault(); openPalette(); } });
+document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ ['spotlight','palette','startMenu','lightbox'].forEach(id=>{ const n=$('#'+id); if(n) n.style.display='none'; }); } });
+
+/* Desktop shortcuts */
+(function addShortcuts(){ const shortcuts=[{id:'browser',x:18,y:18},{id:'explorer',x:18,y:98},{id:'notepad',x:18,y:178},{id:'code',x:18,y:258},{id:'terminal',x:18,y:338},{id:'snake',x:18,y:418}];
+  shortcuts.forEach(sc=>{ const a=APPS.find(x=>x.id===sc.id); if(!a) return; const d=document.createElement('div'); d.style.position='absolute'; d.style.left=sc.x+'px'; d.style.top=sc.y+'px'; d.style.padding='8px'; d.style.textAlign='center'; d.style.width='104px'; d.style.cursor='pointer'; d.innerHTML=`<div style="font-size:28px">${a.icon}</div><div style="font-size:.9rem; margin-top:4px">${a.name}</div>`; d.onclick=()=>openApp(sc.id); $('#desktop').appendChild(d); });
+})();
+
+/* Quick tools */
+$('#quickShot').onclick=async()=>{ if(window.html2canvas){ const c=await html2canvas($('#desktop'),{backgroundColor:null,scale:2}); c.toBlob(b=>download(b,'desktop.png')); } else toast('Screenshot not supported.'); };
+document.addEventListener('pointerdown',(e)=>{ if($('#startMenu').style.display==='block' && !$('#startMenu').contains(e.target) && !$('#startBtn').contains(e.target)) toggleStart(false); });
+
+/* ---------- Open with default app ---------- */
+function openFile(path){
+  const node=getNode(path); if(!node) return toast('File not found.');
+  if((node.mime||'').startsWith('text/')) openApp('notepad', path);
+  else if((node.mime||'').startsWith('image/')) openApp('image', {path});
+  else if((node.mime||'').startsWith('video/')) openApp('video', {path});
+  else if((node.mime||'').startsWith('audio/')) openApp('music', {path});
+  else openApp('notepad', path);
+}
+
+/* ---------- Apps ---------- */
+const ICONS={browser:'🌐', explorer:'📁', notepad:'📝', code:'🧑‍💻', terminal:'>_', docs:'📄', sheets:'📊', paint:'🎨', video:'🎬', snake:'🟩', calc:'🧮', music:'🎵', image:'🖼️', notes:'🗒️', dos:'🧪', linux:'🐧', settings:'⚙️', info:'ℹ️'};
+function icon(name){ return ICONS[name] || '🗔'; }
+function openApp(id, arg){ const app=APPS.find(a=>a.id===id); if(app && app.open) app.open(arg); else toast('App not found: '+id); }
+function openWebApp(app){ // in-window web app
+  const {contentEl} = createWindow({title:app.name+' — Web‑App', icon:'🧩', width:980, height:720, status:new URL(app.url).href, singleInstanceKey:'web:'+app.url});
+  contentEl.innerHTML=`
+    <div class="toolbar">
+      <button class="btn" id="extOpen">Open in new tab ↗</button>
+    </div>
+    <div style="position:relative; height:calc(100% - 56px)">
+      <iframe id="waf" style="position:absolute; inset:0; width:100%; height:100%" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-pointer-lock allow-popups allow-same-origin"></iframe>
+    </div>`;
+  $('#extOpen', contentEl).onclick=()=>window.open(app.url, '_blank','noopener');
+  $('#waf', contentEl).src = app.url;
+}
+
+/* Web‑App Installer (taskbar button) */
+$('#installApp').onclick=()=>{
+  const name=prompt('App name (tile label):','My App');
+  if(!name) return;
+  const url=prompt('URL to open (https://…):','https://example.org');
+  try{ new URL(url); }catch(e){ return toast('Invalid URL'); }
+  const list=JSON.parse(localStorage.getItem('nova_webapps')||'[]'); list.push({name, url}); localStorage.setItem('nova_webapps', JSON.stringify(list));
+  buildStartMenu(); toast('Installed to Start menu.');
+};
+
+/* --- Browser (tabbed + pop‑out fallback) --- */
+registerApp({ id:'browser', name:'Web Browser', icon:icon('browser'), tag:'Tabs + Open↗',
+  open(){
+    const {contentEl} = createWindow({title:'Web Browser', icon:icon('browser'), width:1040, height:720, status:'Some sites block embedding; use Open ↗ when needed.', singleInstanceKey:'browser'});
+    contentEl.innerHTML = `
+      <div class="toolbar">
+        <button class="btn" id="newTab">＋</button>
+        <button class="btn" id="closeTab">✕</button>
+        <button class="btn" id="back">←</button>
+        <button class="btn" id="fwd">→</button>
+        <button class="btn" id="reload">⟳</button>
+        <input id="url" placeholder="Enter URL or search…" style="flex:1; min-width:180px"/>
+        <button class="btn ok" id="go">Go</button>
+        <button class="btn" id="openExt">Open ↗</button>
+        <button class="btn" id="openFile">Open File…</button>
+      </div>
+      <div id="tabbar" style="display:flex; gap:6px; padding:6px; overflow:auto"></div>
+      <div id="webwrap" style="position:relative; height:calc(100% - 140px)"></div>`;
+
+    const url=$('#url', contentEl), tabbar=$('#tabbar', contentEl), wrap=$('#webwrap', contentEl);
+    const tabs=[]; let active= -1;
+
+    function makeIframe(){
+      const f=document.createElement('iframe');
+      f.style.position='absolute'; f.style.inset='0'; f.style.width='100%'; f.style.height='100%';
+      f.setAttribute('sandbox','allow-scripts allow-forms allow-pointer-lock allow-popups allow-same-origin');
+      f.referrerPolicy='no-referrer'; return f;
+    }
+    function addTab(u='https://example.org/'){
+      const id=tabs.length; const iframe=makeIframe(); wrap.appendChild(iframe);
+      tabs.push({iframe, history:[], idx:-1, title:'Tab '+(id+1)});
+      const chip=document.createElement('div'); chip.className='btn'; chip.textContent='Tab '+(id+1); chip.dataset.id=id; chip.onclick=()=>activate(id); tabbar.appendChild(chip);
+      activate(id); navigate(u);
+    }
+    function activate(i){
+      active=i;
+      wrap.querySelectorAll('iframe').forEach((el,idx)=> el.style.display = (idx===i)?'block':'none');
+      $$('#tabbar .btn').forEach((b,idx)=>{ b.style.outline = (idx===i)?'2px solid #00d1ff55':''; });
+      url.value = tabs[i]?.history?.[tabs[i].idx] || '';
+    }
+    function normalize(u){ try{ const hasProto=/^https?:\/\//i.test(u); if(!hasProto){ if(u.includes('.') && !u.includes(' ')) return 'https://'+u; } return u; }catch(e){ return u; } }
+    function navigate(u){
+      if(active<0) return;
+      u=u.trim(); if(!/^https?:\/\//i.test(u)){ u = 'https://duckduckgo.com/?q='+encodeURIComponent(u); }
+      const t=tabs[active]; t.history = t.history.slice(0, t.idx+1); t.history.push(u); t.idx++;
+      url.value=u; t.iframe.src=u;
+    }
+    function back(){ const t=tabs[active]; if(t && t.idx>0){ t.idx--; t.iframe.src=t.history[t.idx]; url.value=t.history[t.idx]; } }
+    function fwd(){ const t=tabs[active]; if(t && t.idx < t.history.length-1){ t.idx++; t.iframe.src=t.history[t.idx]; url.value=t.history[t.idx]; } }
+    function reload(){ const t=tabs[active]; if(t) t.iframe.src = t.iframe.src; }
+    function closeTab(){ if(active<0) return; tabs[active].iframe.remove(); tabs.splice(active,1); tabbar.removeChild(tabbar.children[active]); if(!tabs.length){ addTab(); } else { activate(Math.max(0, active-1)); } }
+    function openExt(){ const t=tabs[active]; if(t){ window.open(t.history[t.idx] || 'about:blank', '_blank', 'noopener'); } }
+
+    $('#newTab', contentEl).onclick=()=>addTab('https://example.org/');
+    $('#closeTab', contentEl).onclick=closeTab;
+    $('#back', contentEl).onclick=back;
+    $('#fwd', contentEl).onclick=fwd;
+    $('#reload', contentEl).onclick=reload;
+    $('#go', contentEl).onclick=()=>navigate(normalize(url.value));
+    url.addEventListener('keydown', (e)=>{ if(e.key==='Enter') navigate(normalize(url.value)); });
+    $('#openExt', contentEl).onclick=openExt;
+    $('#openFile', contentEl).onclick=async()=>{
+      try{
+        if(window.showOpenFilePicker){
+          const [h]=await showOpenFilePicker({types:[{description:'HTML', accept:{'text/html':['.html','.htm']}}]});
+          const f=await h.getFile(); const u=URL.createObjectURL(f); addTab(u);
+          setTimeout(()=>URL.revokeObjectURL(u), 15000);
+        }else{ toast('Your browser does not support file picker.'); }
+      }catch(e){ /* user canceled */ }
+    };
+
+    addTab('https://example.org/');
+  }
+});
+
+/* --- File Explorer --- */
+registerApp({ id:'explorer', name:'File Explorer', icon:icon('explorer'), tag:'Local FS',
+  open(startPath='/'){
+    const {contentEl}=createWindow({title:'File Explorer', icon:icon('explorer'), width:920, height:640, status:'Local virtual file system'});
+    contentEl.innerHTML=`
+      <div class="toolbar">
+        <button class="btn" id="up">⬆</button>
+        <div style="flex:1"><input id="path" value="/" /></div>
+        <button class="btn" id="newFile">New File</button>
+        <button class="btn" id="newFolder">New Folder</button>
+        <button class="btn" id="import">Import</button>
+        <button class="btn" id="export">Export</button>
+      </div>
+      <div id="list"></div>`;
+    const pathI = $('#path', contentEl), list=$('#list', contentEl);
+    function render(p){
+      pathI.value=p;
+      const arr=listDir(p); list.innerHTML='';
+      const upBtn=document.createElement('div'); upBtn.className='btn'; upBtn.textContent='.. (parent)'; upBtn.onclick=()=>{ const parts=pathParts(p); parts.pop(); render('/'+parts.join('/')); }; list.appendChild(upBtn);
+      arr.forEach(n=>{
+        const row=document.createElement('div'); row.style.display='flex'; row.style.gap='10px'; row.style.alignItems='center'; row.style.padding='6px 4px'; row.style.borderBottom='1px solid #ffffff16';
+        const icon= n.type==='dir' ? '📁' : (n.mime?.startsWith('image/') ? '🖼️': (n.mime?.startsWith('video/')?'🎬': (n.mime?.startsWith('audio/')?'🎵':'📄')));
+        row.innerHTML=`<div style="min-width:24px">${icon}</div><div style="flex:1" class="nm">${n.name}</div><div class="hint">${n.type}</div>`;
+        row.ondblclick=()=>{ if(n.type==='dir') render((p==='/'?'':'')+p+'/'+n.name); else openFile((p==='/'?'':'')+p+'/'+n.name); };
+        const actions=document.createElement('div');
+        const rn=document.createElement('button'); rn.className='btn'; rn.textContent='Rename';
+        rn.onclick=()=>{ const nn=prompt('Rename to:', n.name); if(!nn) return; renameNode((p==='/'?'':'')+p+'/'+n.name, nn) && render(p); };
+        const del=document.createElement('button'); del.className='btn bad'; del.textContent='Delete';
+        del.onclick=()=>{ if(confirm('Delete '+n.name+'?')){ deleteNode((p==='/'?'':'')+p+'/'+n.name) && render(p); } };
+        actions.appendChild(rn); actions.appendChild(del); row.appendChild(actions);
+        list.appendChild(row);
+      });
+    }
+    $('#up', contentEl).onclick=()=>{ const parts=pathParts(pathI.value); parts.pop(); render('/'+parts.join('/')); };
+    $('#newFile', contentEl).onclick=()=>{ const name=prompt('File name:','new.txt'); if(!name) return; writeFile((pathI.value.endsWith('/')?pathI.value:pathI.value+'/')+name,''); render(pathI.value); };
+    $('#newFolder', contentEl).onclick=()=>{ const name=prompt('Folder name:','New Folder'); if(!name) return; ensureDir((pathI.value.endsWith('/')?pathI.value:pathI.value+'/')+name); saveFS(); render(pathI.value); };
+    $('#import', contentEl).onclick=async()=>{
+      try{
+        if(window.showOpenFilePicker){
+          const handles=await showOpenFilePicker({multiple:true});
+          for(const h of handles){ const f=await h.getFile(); const data=await fileToDataURL(f); writeFile((pathI.value.endsWith('/')?pathI.value:pathI.value+'/')+f.name, data, f.type||'application/octet-stream'); }
+          render(pathI.value);
+        }else{
+          const inp=document.createElement('input'); inp.type='file'; inp.multiple=true; inp.onchange=async()=>{ for(const f of inp.files){ const data=await fileToDataURL(f); writeFile((pathI.value.endsWith('/')?pathI.value:pathI.value+'/')+f.name, data, f.type||'application/octet-stream'); } render(pathI.value); }; inp.click();
+        }
+      }catch(e){ /* canceled */ }
+    };
+    $('#export', contentEl).onclick=async()=>{
+      const p=pathI.value; const node=getNode(p); if(!node||node.type!=='dir') return toast('Choose a folder');
+      // export as .json
+      download(new Blob([JSON.stringify(node)],{type:'application/json'}), (p.split('/').pop()||'root')+'.json');
+    };
+    render(startPath||'/');
+  }
+});
+
+/* --- Notepad --- */
+registerApp({ id:'notepad', name:'Notepad', icon:icon('notepad'),
+  open(path){
+    const {contentEl}=createWindow({title:'Notepad', icon:icon('notepad'), width:760, height:560, status:'Plain text editor'});
+    contentEl.innerHTML=`<div class="toolbar"><button class="btn" id="save">💾 Save</button><div style="flex:1"><input id="fname" placeholder="/Documents/notes.txt"/></div></div><textarea id="ta"></textarea>`;
+    const ta=$('#ta', contentEl), fn=$('#fname', contentEl);
+    if(typeof path==='string'){ const node=getNode(path); if(node) { ta.value= node.content?.startsWith('data:')? '' : (node.content||''); fn.value=path; } }
+    $('#save', contentEl).onclick=()=>{ const p=fn.value.trim()||('/Documents/note-'+Date.now()+'.txt'); writeFile(p, ta.value, 'text/plain'); toast('Saved '+p); };
+  }
+});
+
+/* --- Docs (rich‑text) --- */
+registerApp({ id:'docs', name:'Docs', icon:'📄', tag:'Rich‑text',
+  open(){
+    const {contentEl}=createWindow({title:'Docs (Rich‑text)', icon:'📄', width:820, height:640, status:'Format with toolbar • Export as HTML'});
+    contentEl.innerHTML=`
+      <div class="toolbar">
+        <button class="btn" data-cmd="bold"><b>B</b></button>
+        <button class="btn" data-cmd="italic"><i>I</i></button>
+        <button class="btn" data-cmd="underline"><u>U</u></button>
+        <button class="btn" data-cmd="insertUnorderedList">• List</button>
+        <button class="btn" id="export">Export HTML</button>
+      </div>
+      <div id="rt" contenteditable="true" style="background:#0b1220; border:1px solid #ffffff22; border-radius:10px; padding:12px; min-height:60vh">
+        <h1>Welcome to Docs</h1><p>Edit me. This is stored only when you export.</p>
+      </div>`;
+    $$('.toolbar .btn', contentEl).forEach(b=> b.dataset.cmd && (b.onclick=()=>document.execCommand(b.dataset.cmd,false,null)));
+    $('#export', contentEl).onclick=()=>download(new Blob([$('#rt',contentEl).innerHTML],{type:'text/html'}),'document.html');
+  }
+});
+
+/* --- Sheets (lightweight) --- */
+registerApp({ id:'sheets', name:'Sheets', icon:'📊', tag:'Light grid',
+  open(){
+    const {contentEl}=createWindow({title:'Sheets', icon:'📊', width:860, height:640, status:'Lightweight spreadsheet'});
+    const rows=20, cols=8; let data=[...Array(rows)].map(()=>Array(cols).fill(''));
+    contentEl.innerHTML=`<div class="toolbar"><button class="btn" id="export">Export CSV</button></div><table class="sheet" id="sheet"></table>`;
+    const tbl=$('#sheet', contentEl);
+    function render(){ tbl.innerHTML=''; const trh=document.createElement('tr'); trh.innerHTML='<th></th>'+Array(cols).fill(0).map((_,i)=>'<th>'+String.fromCharCode(65+i)+'</th>').join(''); tbl.appendChild(trh);
+      for(let r=0;r<rows;r++){ const tr=document.createElement('tr'); tr.innerHTML='<th>'+(r+1)+'</th>'+Array(cols).fill(0).map((_,c)=>`<td contenteditable="true" data-r="${r}" data-c="${c}">${data[r][c]||''}</td>`).join(''); tbl.appendChild(tr); } }
+    render();
+    tbl.addEventListener('input',(e)=>{ const td=e.target.closest('td'); if(!td) return; const r=+td.dataset.r, c=+td.dataset.c; data[r][c]=td.textContent; });
+    $('#export', contentEl).onclick=()=>{ const csv=data.map(row=>row.map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(',')).join('\n'); download(new Blob([csv],{type:'text/csv'}),'sheet.csv'); };
+  }
+});
+
+/* --- Code Editor (Ace) --- */
+registerApp({ id:'code', name:'Code Editor', icon:icon('code'),
+  open(path){
+    const {contentEl}=createWindow({title:'Code Editor', icon:icon('code'), width:980, height:700, status:'Ace editor with syntax highlight'});
+    contentEl.innerHTML=`
+      <div class="toolbar">
+        <button class="btn" id="save">💾 Save</button>
+        <button class="btn" id="runhtml">▶ Preview HTML</button>
+        <div style="flex:1"><input id="fname" placeholder="/Documents/app.html"/></div>
+      </div>
+      <div id="ed" style="height:calc(100% - 100px); border:1px solid #ffffff22; border-radius:10px"></div>`;
+    const ed=$('#ed', contentEl); const editor = ace.edit(ed); editor.setTheme("ace/theme/monokai"); editor.session.setMode("ace/mode/javascript"); editor.setOptions({enableLiveAutocompletion:true, fontSize:"14px"});
+    const fn=$('#fname', contentEl);
+    if(typeof path==='string'){ const node=getNode(path); if(node){ editor.setValue(node.content||'', -1); fn.value=path; const ext=(path.split('.').pop()||'').toLowerCase(); const map={js:'javascript', ts:'typescript', html:'html', css:'css', py:'python', md:'markdown'}; editor.session.setMode('ace/mode/'+(map[ext]||'text')); } }
+    $('#save', contentEl).onclick=()=>{ const p=fn.value.trim()||('/Documents/code-'+Date.now()+'.txt'); writeFile(p, editor.getValue(), 'text/plain'); toast('Saved '+p); };
+    $('#runhtml', contentEl).onclick=()=>{ const html=editor.getValue(); const blob=new Blob([html],{type:'text/html'}); const u=URL.createObjectURL(blob); const w=createWindow({title:'HTML Preview', icon:'🧪', width:860, height:600}); $('.content', w.el).innerHTML=`<iframe style="width:100%;height:100%;border:0"></iframe>`; $('iframe', w.el).src=u; setTimeout(()=>URL.revokeObjectURL(u), 15000); };
+  }
+});
+
+/* --- Python Terminal (Pyodide + micropip) --- */
+registerApp({ id:'terminal', name:'Python Terminal', icon:icon('terminal'), tag:'pip via micropip',
+  async open(){
+    const {contentEl}=createWindow({title:'Python Terminal (Pyodide)', icon:icon('terminal'), width:980, height:680, status:'Type: pip install package_name'});
+    contentEl.innerHTML=`<div class="hint">Tip: install pure‑Python packages with <span class="kbd">pip install packagename</span>. Examples: <span class="kbd">pip install requests</span>, <span class="kbd">pip install sympy</span>. Numpy/pandas are built‑in.</div>
+      <div class="toolbar"><button class="btn" id="restart">Restart runtime</button><div style="margin-left:auto"><span class="hint">Shift+Enter to run</span></div></div>
+      <textarea id="pyin" placeholder="print('Hello from Pyodide!')"></textarea>
+      <div style="margin-top:8px; border:1px solid #ffffff22; border-radius:10px; padding:8px; max-height:32vh; overflow:auto" id="pyout"></div>`;
+
+    const out=$('#pyout', contentEl); const pin=$('#pyin', contentEl);
+    const write=(s)=>{ const d=document.createElement('div'); d.textContent=s; out.appendChild(d); out.scrollTop=out.scrollHeight; };
+
+    // load pyodide
+    try{
+      await loadScript('https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js');
+      const pyodide = await loadPyodide({stdout:write, stderr:(s)=>write('[err] '+s)});
+      write('Pyodide '+pyodide.version+' ready.');
+      await pyodide.loadPackage(['micropip','numpy','pandas']); // common bundles
+
+      async function run(code){
+        try{
+          // simple pip parser
+          const pip=re=>/^\s*pip\s+install\s+([A-Za-z0-9_\-\.]+)/.exec(code||'');
+          const m=pip(code);
+          if(m){
+            write('Installing '+m[1]+' …');
+            await pyodide.runPythonAsync(`import micropip\nawait micropip.install("${m[1]}")`);
+            write('Installed '+m[1]);
+            return;
+          }
+          const r=await pyodide.runPythonAsync(code);
+          if(typeof r!=='undefined') write(String(r));
+        }catch(e){ write('⚠ '+(e.message||e)); }
+      }
+      pin.addEventListener('keydown',(e)=>{ if(e.key==='Enter' && e.shiftKey){ e.preventDefault(); run(pin.value); } });
+      $('#restart', contentEl).onclick=async()=>{ write('Restarting…'); location.reload(); };
+    }catch(e){
+      write('Failed to load Pyodide. Check your network or CDN.');
+    }
+  }
+});
+
+/* --- Paint --- */
+registerApp({ id:'paint', name:'Paint', icon:icon('paint'),
+  open(){
+    const {contentEl}=createWindow({title:'Paint', icon:icon('paint'), width:880, height:640, status:'Draw on canvas'});
+    contentEl.innerHTML=`<div class="toolbar"><label>Size <input type="range" id="sz" min="1" max="40" value="6"/></label><input type="color" id="col" value="#00d1ff"/><button class="btn" id="clear">Clear</button><button class="btn" id="save">Save PNG</button></div><canvas id="cv" width="1200" height="700" style="background:#0b1220; border:1px solid #ffffff22; border-radius:10px; width:100%; height:calc(100% - 92px)"></canvas>`;
+    const cv=$('#cv', contentEl), ctx=cv.getContext('2d'); let drawing=false, last=null; ctx.lineCap='round'; ctx.lineJoin='round';
+    cv.addEventListener('pointerdown',(e)=>{ drawing=true; last=[e.offsetX, e.offsetY]; });
+    cv.addEventListener('pointermove',(e)=>{ if(!drawing) return; ctx.strokeStyle=$('#col',contentEl).value; ctx.lineWidth=+$('#sz',contentEl).value; ctx.beginPath(); ctx.moveTo(last[0],last[1]); ctx.lineTo(e.offsetX,e.offsetY); ctx.stroke(); last=[e.offsetX,e.offsetY]; });
+    addEventListener('pointerup',()=>{ drawing=false; });
+    $('#clear', contentEl).onclick=()=>{ ctx.clearRect(0,0,cv.width,cv.height); };
+    $('#save', contentEl).onclick=()=>{ cv.toBlob(b=>download(b,'paint.png')); };
+  }
+});
+
+/* --- Video (player + quick trim fallback) --- */
+registerApp({ id:'video', name:'Video Player', icon:icon('video'),
+  open(arg){
+    const {contentEl}=createWindow({title:'Video', icon:icon('video'), width:980, height:640, status:'Load a video; set A/B; export (Canvas fallback)'});
+    contentEl.innerHTML=`<div class="toolbar"><button class="btn" id="open">Open…</button><label>A<input type="number" id="a" min="0" value="0" step="0.1" style="width:90px"/></label><label>B<input type="number" id="b" min="0" value="5" step="0.1" style="width:90px"/></label><button class="btn" id="trim">Export clip</button></div><video id="vd" controls style="width:100%; height:calc(100% - 100px); background:#000"></video>`;
+    const v=$('#vd', contentEl);
+    async function openFileDialog(){
+      try{
+        if(window.showOpenFilePicker){
+          const [h]=await showOpenFilePicker({types:[{description:'Video', accept:{'video/*':['.mp4','.webm','.ogg']}}]});
+          const f=await h.getFile(); v.src=URL.createObjectURL(f);
+        }else{ const inp=document.createElement('input'); inp.type='file'; inp.accept='video/*'; inp.onchange=()=>{ v.src=URL.createObjectURL(inp.files[0]); }; inp.click(); }
+      }catch(e){}
+    }
+    $('#open', contentEl).onclick=openFileDialog;
+    if(arg?.path){ const node=getNode(arg.path); const url=resolveFileURL(node); if(url) v.src=url; }
+
+    $('#trim', contentEl).onclick=async()=>{
+      const a=parseFloat($('#a',contentEl).value||'0'), b=parseFloat($('#b',contentEl).value||'5');
+      if(!(v.readyState>=2)) return toast('Load a video first.');
+      const canvas=document.createElement('canvas'); canvas.width=v.videoWidth; canvas.height=v.videoHeight; const ctx=canvas.getContext('2d');
+      const chunks=[]; const stream=canvas.captureStream(); const rec=new MediaRecorder(stream, {mimeType:'video/webm'}); rec.ondataavailable=(e)=>{ if(e.data.size) chunks.push(e.data); }; rec.onstop=()=> download(new Blob(chunks,{type:'video/webm'}), 'clip.webm'); rec.start();
+      const t0=a; v.pause(); v.currentTime=t0; await new Promise(r=>v.onseeked=r);
+      const end=b; const fps=30; let t=t0, steps=Math.max(1, Math.floor((end-a)*fps));
+      for(let i=0;i<steps;i++){ v.currentTime = t0 + i/fps; await new Promise(r=>v.onseeked=r); ctx.drawImage(v,0,0,canvas.width,canvas.height); await new Promise(r=>setTimeout(r, 1000/fps)); }
+      rec.stop();
+    };
+  }
+});
+
+/* --- Snake --- */
+registerApp({ id:'snake', name:'Snake', icon:icon('snake'),
+  open(){
+    const {contentEl}=createWindow({title:'Snake', icon:icon('snake'), width:560, height:560, status:'Use arrows / WASD'});
+    contentEl.innerHTML=`<canvas id="cv" width="520" height="520" style="width:100%;height:calc(100% - 16px); background:#000;border-radius:10px"></canvas>`;
+    const cv=$('#cv', contentEl), ctx=cv.getContext('2d');
+    let grid=20, px=10, py=10, xv=1, yv=0, ax=15, ay=15, trail=[], tail=5, score=0; function rnd(n){return Math.floor(Math.random()*n);}
+    function loop(){ px+=xv; py+=yv; if(px<0)px=grid-1; if(px>grid-1)px=0; if(py<0)py=grid-1; if(py>grid-1)py=0; ctx.fillStyle='#111'; ctx.fillRect(0,0,cv.width,cv.height);
+      ctx.fillStyle='#0bf'; for(let i=0;i<trail.length;i++){ ctx.fillRect(trail[i].x*26, trail[i].y*26, 24, 24); if(trail[i].x===px&&trail[i].y===py){ tail=5; score=0; } }
+      trail.push({x:px,y:py}); while(trail.length>tail) trail.shift(); if(ax===px&&ay===py){ tail++; score++; ax=rnd(grid); ay=rnd(grid); }
+      ctx.fillStyle='#3f3'; ctx.fillRect(ax*26, ay*26, 24, 24);
+      requestAnimationFrame(loop);
+    } requestAnimationFrame(loop);
+    addEventListener('keydown',(e)=>{ const k=e.key.toLowerCase(); if(k==='arrowleft'||k==='a'){xv=-1;yv=0} if(k==='arrowright'||k==='d'){xv=1;yv=0} if(k==='arrowup'||k==='w'){xv=0;yv=-1} if(k==='arrowdown'||k==='s'){xv=0;yv=1} });
+  }
+});
+
+/* --- Calculator --- */
+registerApp({ id:'calc', name:'Calculator', icon:icon('calc'),
+  open(){
+    const {contentEl}=createWindow({title:'Calculator', icon:icon('calc'), width:360, height:480});
+    contentEl.innerHTML=`<input id="in" placeholder="2+2*10" style="width:100%; font-size:1.4rem"/><div class="toolbar"><button class="btn" id="go">=</button><span class="hint" id="out"></span></div>`;
+    $('#go',contentEl).onclick=()=>{ try{ $('#out',contentEl).textContent= ' = '+ Function('return ('+$('#in',contentEl).value+')')(); }catch(e){ $('#out',contentEl).textContent='Invalid'; } };
+  }
+});
+
+/* --- Music player --- */
+registerApp({ id:'music', name:'Music', icon:icon('music'),
+  open(){
+    const {contentEl}=createWindow({title:'Music Player', icon:icon('music'), width:700, height:520});
+    contentEl.innerHTML=`<div class="toolbar"><button class="btn" id="open">Open audio…</button></div><audio id="au" controls style="width:100%"></audio>`;
+    const au=$('#au', contentEl); $('#open',contentEl).onclick=async()=>{
+      try{
+        if(window.showOpenFilePicker){
+          const [h]=await showOpenFilePicker({types:[{description:'Audio', accept:{'audio/*':['.mp3','.ogg','.wav','.m4a']}}]});
+          const f=await h.getFile(); au.src=URL.createObjectURL(f);
+        }else{ const inp=document.createElement('input'); inp.type='file'; inp.accept='audio/*'; inp.onchange=()=>{ au.src=URL.createObjectURL(inp.files[0]); }; inp.click(); }
+      }catch(e){}
+    };
+  }
+});
+
+/* --- Image viewer --- */
+registerApp({ id:'image', name:'Image Viewer', icon:icon('image'),
+  open(arg){
+    const {contentEl}=createWindow({title:'Image Viewer', icon:icon('image'), width:800, height:620});
+    contentEl.innerHTML=`<div class="toolbar"><button class="btn" id="open">Open image…</button><button class="btn" id="dl">Download</button></div><img id="im" style="max-width:100%; max-height:calc(100% - 100px); display:block; margin:0 auto; object-fit:contain"/>`;
+    const im=$('#im', contentEl);
+    $('#open', contentEl).onclick=async()=>{
+      try{
+        if(window.showOpenFilePicker){ const [h]=await showOpenFilePicker({types:[{description:'Images', accept:{'image/*':['.png','.jpg','.jpeg','.gif','.webp','.svg']}}]}); const f=await h.getFile(); im.src=URL.createObjectURL(f); }
+        else{ const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.onchange=()=>{ im.src=URL.createObjectURL(inp.files[0]); }; inp.click(); }
+      }catch(e){}
+    };
+    $('#dl', contentEl).onclick=()=>{ if(!im.src) return; fetch(im.src).then(r=>r.blob()).then(b=>download(b,'image')); };
+    if(arg?.path){ const node=getNode(arg.path); const url=resolveFileURL(node); if(url) im.src=url; }
+  }
+});
+
+/* --- Sticky Notes --- */
+registerApp({ id:'notes', name:'Sticky Notes', icon:icon('notes'),
+  open(){
+    const {contentEl}=createWindow({title:'Sticky Notes', icon:icon('notes'), width:560, height:520});
+    contentEl.innerHTML=`<div class="toolbar"><button class="btn" id="new">New note</button></div><div id="wrap"></div>`;
+    const wrap=$('#wrap', contentEl);
+    function add(text=''){
+      const d=document.createElement('div'); d.contentEditable=true; d.style.background='#fef08a22'; d.style.border='1px solid #ffffff22'; d.style.borderRadius='10px'; d.style.padding='10px'; d.style.margin='8px 0'; d.textContent=text; wrap.appendChild(d);
+    }
+    $('#new', contentEl).onclick=()=>add('Note…');
+    add('Double‑click to edit me');
+  }
+});
+
+/* --- DOS (experimental) --- */
+registerApp({ id:'dos', name:'DOS Player (exp)', icon:icon('dos'), tag:'js‑dos',
+  async open(){
+    const {contentEl}=createWindow({title:'DOS Player (experimental)', icon:icon('dos'), width:920, height:640, status:'Load a DOS ZIP; or open FreeDOS externally'});
+    contentEl.innerHTML=`<div class="toolbar"><button class="btn" id="load">Load ZIP (DOS game/app)</button><button class="btn" id="freedos">Open FreeDOS ↗</button><span class="hint">CDN may block — experimental</span></div><div id="dosbox" style="width:100%;height:calc(100% - 100px); background:#000;border-radius:10px; display:grid; place-items:center">Loading engine…</div>`;
+    $('#freedos', contentEl).onclick=()=> window.open('https://copy.sh/v86/?profile=freedos', '_blank','noopener');
+    try{
+      await loadScript('https://cdn.jsdelivr.net/npm/js-dos@7.4.6/dist/js-dos.js');
+      const div=$('#dosbox', contentEl); div.textContent='Drop a ZIP, or click "Load ZIP".';
+      div.addEventListener('dragover',(e)=>{ e.preventDefault(); div.style.outline='2px dashed #09f'; });
+      div.addEventListener('dragleave',()=>{ div.style.outline=''; });
+      div.addEventListener('drop', async (e)=>{
+        e.preventDefault(); div.style.outline=''; const f=e.dataTransfer.files?.[0]; if(!f) return;
+        const buf=await f.arrayBuffer(); const ci = await Dos(div, { wdosboxUrl: 'https://cdn.jsdelivr.net/npm/js-dos@7.4.6/dist/wdosbox.js' });
+        await ci.fs.extract(new Uint8Array(buf)); await ci.main(['-c','dir','-c','cls']);
+      });
+      $('#load', contentEl).onclick=async()=>{ const inp=document.createElement('input'); inp.type='file'; inp.accept='.zip,application/zip'; inp.onchange=async()=>{ const f=inp.files[0]; const buf=await f.arrayBuffer(); const ci = await Dos($('#dosbox', contentEl), {wdosboxUrl:'https://cdn.jsdelivr.net/npm/js-dos@7.4.6/dist/wdosbox.js'}); await ci.fs.extract(new Uint8Array(buf)); await ci.main(['-c','dir','-c','cls']); }; inp.click(); };
+    }catch(e){
+      $('#dosbox', contentEl).textContent='js-dos could not be loaded from CDN here.';
+    }
+  }
+});
+
+/* --- Linux VM (experimental) --- */
+registerApp({ id:'linux', name:'Linux VM (exp)', icon:icon('linux'), tag:'v86',
+  async open(){
+    const {contentEl}=createWindow({title:'Linux VM (experimental)', icon:icon('linux'), width:980, height:720, status:'Runs in WebAssembly; may be slow.'});
+    contentEl.innerHTML=`<div class="toolbar"><button class="btn" id="boot">Boot tiny Linux</button><button class="btn" id="ext">Open v86 demos ↗</button></div><div id="term" style="width:100%; height:calc(100% - 100px); background:#000; display:grid; place-items:center; border-radius:10px">Click Boot to start…</div>`;
+    $('#ext', contentEl).onclick=()=>window.open('https://copy.sh/v86/', '_blank','noopener');
+    $('#boot', contentEl).onclick=async()=>{
+      try{
+        await loadScript('https://copy.sh/v86/build/v86.js');
+        const starter = new V86Starter({
+          wasm_path: "https://copy.sh/v86/build/v86.wasm",
+          memory_size: 256 * 1024 * 1024,
+          vga_memory_size: 16 * 1024 * 1024,
+          screen_container: $('#term', contentEl),
+          bios: { url: "https://copy.sh/v86/bios/seabios.bin" },
+          vga_bios: { url: "https://copy.sh/v86/bios/vgabios.bin" },
+          bzimage: { url: "https://copy.sh/v86/images/linux/bzImage" },
+          initrd:  { url: "https://copy.sh/v86/images/linux/initrd.bin" },
+          cmdline: "console=hvc0 root=/dev/ram0"
+        });
+      }catch(e){
+        $('#term', contentEl).textContent='Could not load v86 here.';
+      }
+    };
+  }
+});
+
+/* --- Settings --- */
+registerApp({ id:'settings', name:'Settings', icon:icon('settings'),
+  open(){
+    const {contentEl}=createWindow({title:'Settings', icon:icon('settings'), width:720, height:560, status:'Theme • PWA • Permissions'});
+    contentEl.innerHTML=`
+      <div class="toolbar"><button class="btn" id="theme">Switch Theme</button><button class="btn" id="pwa">Install as App (PWA)</button><button class="btn" id="bt">Pair Bluetooth</button><button class="btn" id="usb">Request USB</button></div>
+      <div class="hint">PWA requires HTTPS. Bluetooth/USB prompts appear only after user interaction and on supported browsers.</div>`;
+    $('#theme', contentEl).onclick=switchTheme;
+    $('#pwa', contentEl).onclick=()=>{ if('serviceWorker' in navigator){ const sw=`self.addEventListener('install',e=>self.skipWaiting()); self.addEventListener('activate',e=>self.clients.claim());`; const blob=new Blob([sw],{type:'text/javascript'}); const url=URL.createObjectURL(blob); navigator.serviceWorker.register(url).then(()=>toast('Service worker registered. Use your browser’s "Install App" feature.')); } else toast('Service workers not supported.'); };
+    $('#bt', contentEl).onclick=async()=>{ try{ const dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true}); toast('Bluetooth: '+dev.name||dev.id); }catch(e){ toast('Bluetooth not available or canceled.'); } };
+    $('#usb', contentEl).onclick=async()=>{ try{ const dev=await navigator.usb.requestDevice({filters:[]}); toast('USB device granted.'); }catch(e){ toast('USB not available or canceled.'); } };
+  }
+});
+
+/* --- Info --- */
+registerApp({ id:'info', name:'About NovaOS', icon:icon('info'),
+  open(){
+    const {contentEl}=createWindow({title:'About NovaOS Ultra+', icon:icon('info'), width:720, height:520});
+    contentEl.innerHTML=`<h2>NovaOS Ultra+—Single‑File Web OS</h2>
+    <p>This project runs entirely in your browser. It offers a desktop‑like UI, apps, a Python terminal (via Pyodide), and experimental emulation (DOS & Linux VM). For privacy and security, the browser sandbox prevents direct access to Wi‑Fi adapters, drivers, kernel modules, or native Windows/Arch executables. Instead, NovaOS provides safe in‑browser alternatives.</p>
+    <ul>
+      <li><b>Windowing:</b> drag/resize/snap; Alt+Tab; taskbar; mobile full‑screen windows.</li>
+      <li><b>Apps:</b> Browser, Explorer, Notepad, Code (Ace), Docs, Sheets, Python Terminal (pip), Paint, Video, Music, Image, Snake, Calculator, Sticky Notes.</li>
+      <li><b>Install Web‑apps:</b> add any URL as a Start tile.</li>
+      <li><b>Experimental:</b> js‑dos for classic DOS .exe; v86 for a tiny Linux VM.</li>
+    </ul>
+    <p class="hint">Keyboard: <span class="kbd">Alt+Tab</span> switch windows • <span class="kbd">Ctrl/Cmd + Space</span> Spotlight • <span class="kbd">Ctrl/Cmd + K</span> Command palette • <span class="kbd">Ctrl/Cmd + W/M</span> Close/Minimize.</p>`;
+  }
+});
+
+/* --- Network Center (taskbar) --- */
+$('#networkCenter').onclick=()=>{
+  const {contentEl}=createWindow({title:'Network Center', icon:'📶', width:560, height:420, status:'Browser sandbox limits Wi‑Fi control'});
+  contentEl.innerHTML=`<div>State: <b>${navigator.onLine?'Online':'Offline'}</b></div>
+  <div class="hint">Real Wi‑Fi selection is not exposed to web apps for security. Use your OS system tray to join networks.</div>
+  <div class="toolbar"><button class="btn" id="ping">Ping example.org</button><button class="btn" id="speed">Quick download test</button></div>
+  <div id="netout" class="hint"></div>`;
+  $('#ping', contentEl).onclick=async()=>{
+    const t0=performance.now(); try{ await fetch('https://example.org',{mode:'no-cors'}); $('#netout',contentEl).textContent='Ping ok ~'+Math.round(performance.now()-t0)+' ms (approx)'; }catch(e){ $('#netout',contentEl).textContent='Ping failed'; }
+  };
+  $('#speed', contentEl).onclick=async()=>{
+    const t0=performance.now(); const r=await fetch('https://upload.wikimedia.org/wikipedia/commons/3/3f/Fronalpstock_big.jpg'); const b=await r.blob(); const dt=(performance.now()-t0)/1000; const mb=b.size/1024/1024; $('#netout',contentEl).textContent = `Downloaded ~${mb.toFixed(1)} MB in ${dt.toFixed(2)} s ≈ ${(mb/dt).toFixed(2)} MB/s`; };
+};
+
+/* Build Start menu on boot */
+buildStartMenu();
+
+</script>
+</body>
+</html>
