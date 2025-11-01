@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NovaOS UltraPlus MAX — Marcelo (ultra-stable)</title>
+<style>
+  :root{
+    --bg1:#0b0f14; --bg2:#0a1c33; --text:#e6eef6; --muted:#a9b3bd;
+    --accent:#41b2ff; --panel:#141a21; --panel2:#0f141a;
+    --glass:rgba(20,26,33,.72); --shadow:0 8px 30px rgba(0,0,0,.45); --blur:blur(8px);
+  }
+  html,body{height:100%;margin:0;background:radial-gradient(1200px 600px at 20% 15%,#1172d1 0%,#0d1830 55%,#070b12 100%);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial,"Noto Sans",sans-serif;overflow:hidden;}
+  #desktop{position:fixed;inset:0;display:flex;flex-direction:column;}
+  #workspace{position:relative;flex:1;overflow:hidden;}
+  #icons{position:absolute;inset:0;display:grid;grid-template-columns:repeat(auto-fill,116px);gap:10px;align-content:start;padding:14px;z-index:1}
+  .icon{width:116px;height:110px;border-radius:12px;background:rgba(255,255,255,.04);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;border:1px solid rgba(255,255,255,.06)}
+  .icon:hover{background:rgba(255,255,255,.08)}
+  .icon .emoji{font-size:28px}
+  .icon .label{font-size:12px;opacity:.9;text-align:center}
+  #windows{position:absolute;inset:0;z-index:10}
+  .win{position:absolute;min-width:360px;min-height:220px;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;z-index:10}
+  .titlebar{height:38px;display:flex;align-items:center;gap:8px;padding:0 10px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0));cursor:grab;user-select:none}
+  .title{flex:1;font-weight:700}
+  .win .btn{border:0;background:rgba(255,255,255,.08);color:var(--text);border-radius:8px;padding:6px 10px;cursor:pointer}
+  .content{padding:12px;background:var(--panel2);height:calc(100% - 38px);overflow:auto}
+  .hint{opacity:.85;font-size:13px;line-height:1.4}
+  #taskbar{height:54px;background:linear-gradient(180deg,rgba(8,12,18,.7),rgba(8,12,18,.95));backdrop-filter:var(--blur);display:flex;align-items:center;gap:.5rem;padding:6px 10px;border-top:1px solid rgba(255,255,255,.06);box-shadow:0 -2px 16px rgba(0,0,0,.5);z-index:40}
+  .tb-btn{appearance:none;border:0;border-radius:10px;background:rgba(255,255,255,.06);color:var(--text);padding:8px 14px;cursor:pointer;font-weight:600}
+  .tb-btn:active{transform:translateY(1px)}
+  .spacer{flex:1}
+  #clock{opacity:.8;font-variant-numeric:tabular-nums}
+  #startMenu{position:absolute;left:8px;bottom:60px;width:420px;max-height:60vh;background:var(--glass);backdrop-filter:var(--blur);border:1px solid rgba(255,255,255,.08);border-radius:14px;box-shadow:var(--shadow);overflow:auto;display:none;z-index:50}
+  #startMenu header{padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.06);font-weight:700;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,0))}
+  #startMenu .cat{padding:8px 14px;color:#9fc5ff;font-weight:600;opacity:.95}
+  #startMenu .app{display:flex;gap:.75rem;align-items:center;padding:10px 14px;cursor:pointer}
+  #startMenu .app:hover{background:rgba(255,255,255,.06)}
+  #startMenu .emoji{font-size:20px}
+  #searchPanel{position:absolute;left:80px;bottom:60px;width:520px;background:var(--glass);backdrop-filter:var(--blur);border:1px solid rgba(255,255,255,.08);border-radius:14px;box-shadow:var(--shadow);display:none;z-index:50}
+  #searchPanel .row{display:flex;gap:8px;padding:10px}
+  #searchPanel input{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.06);color:var(--text)}
+  #setup{position:absolute;inset:0;background:rgba(0,0,0,.35);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:60}
+  .sheet{width:min(820px,92vw);background:var(--glass);backdrop-filter:var(--blur);border:1px solid rgba(255,255,255,.08);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+  .sheet header{padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.08);font-size:18px;font-weight:800}
+  .sheet .body{padding:16px 18px;display:grid;gap:16px}
+  .presets{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+  .preset{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);padding:12px;border-radius:12px;cursor:pointer}
+  .preset:hover{background:rgba(255,255,255,.08)}
+  .small{opacity:.8;font-size:12px}
+  #ctx{position:absolute;min-width:200px;background:var(--glass);backdrop-filter:var(--blur);border:1px solid rgba(255,255,255,.08);border-radius:12px;box-shadow:var(--shadow);display:none;z-index:70}
+  #ctx .item{padding:8px 12px;cursor:pointer}
+  #ctx .item:hover{background:rgba(255,255,255,.08)}
+  #ctx .sep{height:1px;background:rgba(255,255,255,.08);margin:4px 0}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .toolbar .btn{padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);cursor:pointer}
+  .editor{min-height:320px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#0b1117;padding:10px}
+  .editor[contenteditable="true"]:focus{outline:2px solid var(--accent)}
+  table.grid{border-collapse:collapse;width:100%;background:#0b1117}
+  table.grid td, table.grid th{border:1px solid rgba(255,255,255,.08);padding:6px;min-width:80px}
+  .slides{display:grid;gap:10px}
+  .slide{border:1px dashed rgba(255,255,255,.15);padding:10px;border-radius:8px;background:#0b1117}
+  .slide[contenteditable="true"]:focus{outline:2px solid var(--accent)}
+</style>
+</head>
+<body>
+<div id="desktop">
+  <div id="workspace">
+    <div id="icons" aria-label="desktop icons"></div>
+    <div id="windows" aria-label="windows layer"></div>
+    <div id="setup" role="dialog" aria-modal="true">
+      <div class="sheet">
+        <header>Welcome, Marcelo — pick your default profile</header>
+        <div class="body">
+          <div class="presets">
+            <div class="preset" data-profile="gaming">
+              <div style="font-size:22px">🎮 Gaming</div>
+              <div class="small">Steam / Minecraft shortcuts. Official links only.</div>
+            </div>
+            <div class="preset" data-profile="office">
+              <div style="font-size:22px">📁 Office</div>
+              <div class="small">Aurora Office (Writer, Grid, Decks). Export to HTML/CSV.</div>
+            </div>
+            <div class="preset" data-profile="dev">
+              <div style="font-size:22px">🛠️ Dev</div>
+              <div class="small">Code + Terminal. Use your bridge for real package installs.</div>
+            </div>
+          </div>
+          <div class="small">This only changes desktop shortcuts. You can open all apps from Start.</div>
+        </div>
+      </div>
+    </div>
+    <div id="startMenu" role="menu">
+      <header>Start</header>
+      <div class="cat">System</div>
+      <div class="app" data-open="settings"><div class="emoji">⚙️</div><div>Settings</div></div>
+      <div class="app" data-open="setup"><div class="emoji">🧰</div><div>Setup</div></div>
+      <div class="app" data-open="about"><div class="emoji">ℹ️</div><div>About</div></div>
+      <div class="cat">Office</div>
+      <div class="app" data-open="office"><div class="emoji">📁</div><div>Aurora Office</div></div>
+      <div class="app" data-open="writer"><div class="emoji">📝</div><div>Writer</div></div>
+      <div class="app" data-open="grid"><div class="emoji">📊</div><div>Grid</div></div>
+      <div class="app" data-open="decks"><div class="emoji">🎞️</div><div>Decks</div></div>
+      <div class="cat">Dev & Tools</div>
+      <div class="app" data-open="code"><div class="emoji">🧪</div><div>Code</div></div>
+      <div class="app" data-open="terminal"><div class="emoji">💻</div><div>Terminal (Bridge)</div></div>
+      <div class="app" data-open="network"><div class="emoji">📶</div><div>Network Center</div></div>
+      <div class="cat">Gaming</div>
+      <div class="app" data-open="gamehub"><div class="emoji">🎮</div><div>Game Hub</div></div>
+      <div class="app" data-open="steam"><div class="emoji">🧩</div><div>Steam</div></div>
+      <div class="app" data-open="minecraft"><div class="emoji">⛏️</div><div>Minecraft</div></div>
+    </div>
+    <div id="searchPanel">
+      <div class="row">
+        <input id="searchBox" placeholder="Search the web (DuckDuckGo)…" spellcheck="false">
+        <button class="tb-btn" id="searchGo">Search</button>
+      </div>
+    </div>
+    <div id="ctx">
+      <div class="item" data-act="newText">New → Text document</div>
+      <div class="item" data-act="openTerminal">Open Terminal here</div>
+      <div class="item" data-act="applyGaming">Switch to Gaming profile</div>
+      <div class="item" data-act="applyOffice">Switch to Office profile</div>
+      <div class="item" data-act="applyDev">Switch to Dev profile</div>
+      <div class="sep"></div>
+      <div class="item" data-act="settings">Settings</div>
+      <div class="item" data-act="theme">Toggle theme</div>
+    </div>
+  </div>
+  <div id="taskbar">
+    <button class="tb-btn" id="btnStart">▣ Start</button>
+    <button class="tb-btn" id="btnSearch">🔎 Search</button>
+    <div class="spacer"></div>
+    <button class="tb-btn" id="btnTheme">🌓 Theme</button>
+    <button class="tb-btn" id="btnShot">📸 Shot</button>
+    <div id="clock"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+  const icons = $("#icons");
+  const winLayer = $("#windows");
+  const startMenu = $("#startMenu");
+  const searchPanel = $("#searchPanel");
+  const setup = $("#setup");
+  const ctx = $("#ctx");
+  const clock = $("#clock");
+
+  function show(el){ el.style.display = "block"; }
+  function hide(el){ el.style.display = "none"; }
+  function toggle(el){ el.style.display = (el.style.display === "block") ? "none" : "block"; }
+
+  function nowClock(){
+    const d = new Date();
+    const s = d.toLocaleString([], {hour:'2-digit',minute:'2-digit'}) + " • " + d.toLocaleDateString();
+    clock.textContent = s;
+  }
+  setInterval(nowClock, 1000); nowClock();
+
+  // --- Window manager --- //
+  let z = 20;
+  function bringToFront(w){ z += 1; w.style.zIndex = z; }
+
+  function createWindow(opts){
+    const w = document.createElement("div");
+    w.className = "win";
+    w.style.left = (60 + Math.random()*80) + "px";
+    w.style.top  = (60 + Math.random()*60) + "px";
+    w.style.width = (opts.width || 520) + "px";
+    w.style.height = (opts.height || 380) + "px";
+    w.innerHTML = `
+      <div class="titlebar">
+        <div class="title">${opts.title || "Window"}</div>
+        <button class="btn" data-act="min">—</button>
+        <button class="btn" data-act="max">□</button>
+        <button class="btn" data-act="close">✕</button>
+      </div>
+      <div class="content"></div>
+    `;
+    const content = w.querySelector(".content");
+    if (opts.html) content.innerHTML = opts.html;
+    if (opts.onmount) opts.onmount(content, w);
+    winLayer.appendChild(w);
+    bringToFront(w);
+    makeDraggable(w);
+    w.addEventListener("pointerdown", () => bringToFront(w));
+    w.querySelector('[data-act="close"]').addEventListener("click", () => w.remove());
+    w.querySelector('[data-act="min"]').addEventListener("click", () => w.style.display="none");
+    w.querySelector('[data-act="max"]').addEventListener("click", () => {
+      if (w.dataset.max === "1"){
+        w.dataset.max = "";
+        w.style.left = "60px"; w.style.top="60px"; w.style.width="640px"; w.style.height="420px";
+      } else {
+        w.dataset.max = "1";
+        w.style.left = "6px"; w.style.top="6px"; w.style.width = (window.innerWidth-12)+"px"; w.style.height=(window.innerHeight-66)+"px";
+      }
+    });
+    return w;
+  }
+
+  function makeDraggable(win){
+    const bar = win.querySelector(".titlebar");
+    let startX=0, startY=0, winX=0, winY=0, moving=false, rafId=0, pointerId=null;
+    const onMove = (e) => {
+      if (!moving) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const nx = winX + dx;
+      const ny = winY + dy;
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => { win.style.left = nx + "px"; win.style.top  = ny + "px"; });
+    };
+    const onUp = () => {
+      moving = false;
+      if (pointerId!=null) bar.releasePointerCapture(pointerId);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      bar.style.cursor="grab";
+    };
+    bar.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      pointerId = e.pointerId;
+      bar.setPointerCapture(pointerId);
+      moving = true;
+      startX = e.clientX; startY = e.clientY;
+      const rect = win.getBoundingClientRect();
+      winX = rect.left; winY = rect.top;
+      bar.style.cursor="grabbing";
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    });
+  }
+
+  // --- Desktop icons and profiles --- //
+  const apps = {
+    setup: openSetup,
+    gamehub: openGameHub,
+    steam: openSteamApp,
+    minecraft: openMinecraftApp,
+    office: openOffice,
+    writer: openWriter,
+    grid: openGrid,
+    decks: openDecks,
+    terminal: openTerminal,
+    network: openNetwork,
+    about: openAbout,
+    code: openCode,
+    settings: openSettings
+  };
+
+  const profiles = {
+    gaming: [
+      {id:"gamehub", label:"Game Hub", emoji:"🎮"},
+      {id:"steam", label:"Steam", emoji:"🧩"},
+      {id:"minecraft", label:"Minecraft", emoji:"⛏️"}
+    ],
+    office: [
+      {id:"office", label:"Aurora Office", emoji:"📁"},
+      {id:"writer", label:"Writer", emoji:"📝"},
+      {id:"grid", label:"Grid", emoji:"📊"},
+      {id:"decks", label:"Decks", emoji:"🎞️"}
+    ],
+    dev: [
+      {id:"code", label:"Code", emoji:"🧪"},
+      {id:"terminal", label:"Terminal", emoji:"💻"},
+      {id:"network", label:"Network", emoji:"📶"}
+    ]
+  };
+
+  function clearIcons(){ icons.innerHTML = ""; }
+  function addIcon(id,label,emoji){
+    const d = document.createElement("div");
+    d.className="icon";
+    d.innerHTML = `<div class="emoji">${emoji}</div><div class="label">${label}</div>`;
+    d.addEventListener("click", () => launch(id));
+    icons.appendChild(d);
+  }
+  function applyProfile(p){
+    clearIcons();
+    (profiles[p]||[]).forEach(x => addIcon(x.id,x.label,x.emoji));
+    localStorage.setItem("nova.profile", p);
+    localStorage.setItem("nova.profile.set","1");
+  }
+  function ensureProfile(){
+    const preset = localStorage.getItem("nova.profile");
+    if (!localStorage.getItem("nova.profile.set")){
+      show(setup);
+    } else {
+      applyProfile(preset || "office");
+    }
+  }
+
+  // --- App launchers --- //
+  function launch(id){
+    const fn = apps[id];
+    if (typeof fn === "function"){ fn(); }
+    hide(startMenu);
+  }
+
+  // --- Apps --- //
+  function openSetup(){ show(setup); }
+
+  function openGameHub(){
+    createWindow({
+      title:"Game Hub",
+      width:640, height:460,
+      html:`
+      <div class="hint">Deep links use <span style="background:rgba(255,255,255,.08);padding:2px 6px;border-radius:999px">steam://</span>. Requires Steam installed on your OS.</div>
+      <div class="toolbar" style="margin-top:8px">
+        <button class="btn" id="openSteam">Open Steam</button>
+        <button class="btn" id="installSteam">Install Steam (official)</button>
+        <button class="btn" id="openMinecraft">Minecraft</button>
+        <button class="btn" id="openPrism">Prism Launcher</button>
+      </div>
+      `,
+      onmount(el){
+        el.querySelector("#openSteam").addEventListener("click", () => location.href="steam://open/main");
+        el.querySelector("#installSteam").addEventListener("click", () => window.open("https://store.steampowered.com/about/","_blank"));
+        el.querySelector("#openMinecraft").addEventListener("click", () => openMinecraftApp());
+        el.querySelector("#openPrism").addEventListener("click", () => window.open("https://prismlauncher.org/","_blank"));
+      }
+    });
+  }
+
+  function openSteamApp(){
+    createWindow({
+      title:"Steam",
+      html:`
+        <div class="toolbar">
+          <button class="btn" id="steamOpen">Open Steam</button>
+          <button class="btn" id="steamInstall">Install from official site</button>
+        </div>
+        <div class="hint">If your OS handles <b>steam://</b>, "Open Steam" will switch to the client.</div>
+      `,
+      onmount(el){
+        el.querySelector("#steamOpen").addEventListener("click", () => location.href="steam://open/main");
+        el.querySelector("#steamInstall").addEventListener("click", () => window.open("https://store.steampowered.com/about/","_blank"));
+      }
+    });
+  }
+
+  function openMinecraftApp(){
+    createWindow({
+      title:"Minecraft Launcher",
+      html:`
+      <div class="toolbar">
+        <button class="btn" id="mcJava">Java + Bedrock (official)</button>
+        <button class="btn" id="mcBedrock">Bedrock (Microsoft Store)</button>
+        <button class="btn" id="mcPrism">Prism Launcher</button>
+      </div>`,
+      onmount(el){
+        el.querySelector("#mcJava").addEventListener("click", () => window.open("https://www.minecraft.net/en-us/store/minecraft-java-bedrock-edition-pc","_blank"));
+        el.querySelector("#mcBedrock").addEventListener("click", () => window.open("https://apps.microsoft.com/detail/9pgw18npbzv5","_blank"));
+        el.querySelector("#mcPrism").addEventListener("click", () => window.open("https://prismlauncher.org/","_blank"));
+      }
+    });
+  }
+
+  function openOffice(){
+    createWindow({
+      title:"Aurora Office",
+      html:`
+        <div class="toolbar">
+          <button class="btn" id="oWriter">Open Writer</button>
+          <button class="btn" id="oGrid">Open Grid</button>
+          <button class="btn" id="oDecks">Open Decks</button>
+        </div>
+        <div class="hint">Lightweight editors that store work locally. Export to HTML/CSV.</div>
+      `,
+      onmount(el){
+        el.querySelector("#oWriter").addEventListener("click", openWriter);
+        el.querySelector("#oGrid").addEventListener("click", openGrid);
+        el.querySelector("#oDecks").addEventListener("click", openDecks);
+      }
+    });
+  }
+
+  function openWriter(){
+    createWindow({
+      title:"Writer",
+      width:760,height:520,
+      html:`
+        <div class="toolbar">
+          <button class="btn" data-cmd="bold"><b>B</b></button>
+          <button class="btn" data-cmd="italic"><i>I</i></button>
+          <button class="btn" data-cmd="underline"><u>U</u></button>
+          <button class="btn" id="btnExport">Export HTML</button>
+        </div>
+        <div class="editor" id="writerArea" contenteditable="true">Start typing…</div>
+      `,
+      onmount(el){
+        const editor = el.querySelector("#writerArea");
+        el.querySelectorAll("[data-cmd]").forEach(b => b.addEventListener("click", () => {
+          document.execCommand(b.dataset.cmd,false,null);
+          editor.focus();
+        }));
+        el.querySelector("#btnExport").addEventListener("click", () => {
+          const blob = new Blob([`<!doctype html><meta charset="utf-8"><title>Writer Export</title>${editor.innerHTML}`],{type:"text/html"});
+          const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download="writer-export.html"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+        });
+      }
+    });
+  }
+
+  function openGrid(){
+    createWindow({
+      title:"Grid (Spreadsheet)",
+      width:760,height:520,
+      html:`
+        <div class="toolbar">
+          <button class="btn" id="csvExport">Export CSV</button>
+          <button class="btn" id="addRow">+ Row</button>
+          <button class="btn" id="addCol">+ Col</button>
+        </div>
+        <table class="grid" id="grid"></table>
+      `,
+      onmount(el){
+        const table = el.querySelector("#grid");
+        function init(r=8,c=6){
+          table.innerHTML = "";
+          const head = document.createElement("tr");
+          head.innerHTML = "<th></th>" + Array.from({length:c},(_,i)=>`<th>${String.fromCharCode(65+i)}</th>`).join("");
+          table.appendChild(head);
+          for(let i=0;i<r;i++){
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<th>${i+1}</th>` + Array.from({length:c},()=>`<td contenteditable="true"></td>`).join("");
+            table.appendChild(tr);
+          }
+        }
+        init();
+        el.querySelector("#addRow").addEventListener("click", ()=>{
+          const c = table.rows[0].cells.length-1;
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<th>${table.rows.length}</th>` + Array.from({length:c},()=>`<td contenteditable="true"></td>`).join("");
+          table.appendChild(tr);
+        });
+        el.querySelector("#addCol").addEventListener("click", ()=>{
+          const rows = table.rows;
+          const newIdx = rows[0].cells.length-1;
+          rows[0].insertCell().outerHTML = `<th>${String.fromCharCode(65+newIdx)}</th>`;
+          for(let i=1;i<rows.length;i++){
+            const td = document.createElement("td");
+            td.setAttribute("contenteditable","true");
+            rows[i].appendChild(td);
+          }
+        });
+        el.querySelector("#csvExport").addEventListener("click", () => {
+          const rows = Array.from(table.querySelectorAll("tr")).slice(1);
+          const data = rows.map(tr => Array.from(tr.querySelectorAll("td")).map(td => {
+            const t = (td.textContent||"").replace(/"/g,'""');
+            return `"${t}"`;
+          }).join(",")).join("\n");
+          const blob = new Blob([data], {type:"text/csv"});
+          const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download="grid.csv"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+        });
+      }
+    });
+  }
+
+  function openDecks(){
+    createWindow({
+      title:"Decks (Slides)",
+      width:780,height:540,
+      html:`
+        <div class="toolbar">
+          <button class="btn" id="addSlide">+ Slide</button>
+          <button class="btn" id="exportDeck">Export HTML</button>
+        </div>
+        <div class="slides" id="slides"></div>
+      `,
+      onmount(el){
+        const slides = el.querySelector("#slides");
+        function addSlide(text="Slide"){
+          const s = document.createElement("div");
+          s.className="slide";
+          s.setAttribute("contenteditable","true");
+          s.textContent = text;
+          slides.appendChild(s);
+        }
+        addSlide("Title slide");
+        el.querySelector("#addSlide").addEventListener("click", ()=>addSlide("New slide"));
+        el.querySelector("#exportDeck").addEventListener("click", ()=>{
+          const frames = Array.from(slides.querySelectorAll(".slide")).map(s => `<section>${s.innerHTML}</section>`).join("\\n");
+          // Assemble a script tag for the exported deck without putting its closing delimiter directly in this file.
+          const openScr = "<scr"+"ipt>";
+          const closeScr = "</scr"+"ipt>";
+          const deckJS = "let i=0;const slides=[...document.querySelectorAll('section')];function show(){slides.forEach((s,idx)=>s.style.display=idx===i?'flex':'none')}document.addEventListener('keydown',e=>{if(['ArrowRight','PageDown',' '].includes(e.key)){i=Math.min(slides.length-1,i+1);show()}if(['ArrowLeft','PageUp','Backspace'].includes(e.key)){i=Math.max(0,i-1);show()}});window.onload=show;";
+          const html = "<!doctype html><meta charset='utf-8'><title>Deck</title>"+
+`<style>body{margin:0;font:16px/1.4 system-ui;background:#000;color:#fff}section{display:flex;align-items:center;justify-content:center;height:100vh;font-size:48px;padding:40px;box-sizing:border-box}section:nth-child(odd){background:#111}section:nth-child(even){background:#1a1a1a}</style>`+
+          openScr + deckJS + closeScr + frames;
+          const blob = new Blob([html],{type:"text/html"});
+          const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download="deck.html"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+        });
+      }
+    });
+  }
+
+  function openTerminal(){
+    createWindow({
+      title:"Terminal (Bridge)",
+      width:740, height:480,
+      html:`
+        <div class="hint">This in-browser shell is a demo. For real <b>pacman/flatpak/paru</b>, use your native bridge / container.</div>
+        <div class="toolbar"><button class="btn" id="help">help</button><button class="btn" id="clear">clear</button></div>
+        <div class="editor" id="term" style="font-family:ui-monospace,Consolas,monospace;white-space:pre;line-height:1.4;min-height:280px"></div>
+        <input id="termInput" placeholder="type a command and hit Enter" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--text)">
+      `,
+      onmount(el){
+        const term = el.querySelector("#term");
+        const input = el.querySelector("#termInput");
+        function print(s=""){ term.textContent += s + "\\n"; term.scrollTop = term.scrollHeight; }
+        function exec(cmd){
+          cmd = cmd.trim();
+          if (!cmd) return;
+          if (cmd === "help"){
+            print("Supported demo commands: help, echo <text>, date, whoami, pip install <package> (simulated)");
+          } else if (cmd.startsWith("echo ")){
+            print(cmd.slice(5));
+          } else if (cmd === "date"){
+            print(new Date().toString());
+          } else if (cmd === "whoami"){
+            print("web-user");
+          } else if (cmd.startsWith("pip install ")){
+            print("This demo cannot install native packages in-browser. Use the Native Bridge to run real installs.");
+          } else {
+            print("Command not found (demo shell): " + cmd);
+          }
+        }
+        el.querySelector("#help").onclick = () => exec("help");
+        el.querySelector("#clear").onclick = () => term.textContent="";
+        input.addEventListener("keydown", (e)=>{
+          if (e.key === "Enter") { exec(input.value); input.value=""; }
+        });
+        print("Nova Bridge shell. Type 'help'.");
+      }
+    });
+  }
+
+  function openNetwork(){
+    createWindow({
+      title:"Network Center",
+      width:640,height:420,
+      html:`
+        <div class="hint">Web Bluetooth/USB requires a secure context (HTTPS or localhost). On some devices it won't be available.</div>
+        <div class="toolbar">
+          <button class="btn" id="btnBT">Web Bluetooth</button>
+          <button class="btn" id="btnUSB">Web USB</button>
+        </div>
+        <div id="netOut" class="editor" style="font-family:ui-monospace,monospace;white-space:pre;min-height:200px"></div>
+      `,
+      onmount(el){
+        const out = el.querySelector("#netOut");
+        function log(s){ out.textContent += s + "\\n"; }
+        el.querySelector("#btnBT").addEventListener("click", async ()=>{
+          try{
+            if (!navigator.bluetooth){ log("Bluetooth not supported"); return; }
+            const dev = await navigator.bluetooth.requestDevice({acceptAllDevices:true});
+            log("Selected device: " + (dev && dev.name || "Unnamed"));
+          } catch(err){ log("BT error: " + err.message); }
+        });
+        el.querySelector("#btnUSB").addEventListener("click", async ()=>{
+          try{
+            if (!navigator.usb){ log("WebUSB not supported"); return; }
+            const dev = await navigator.usb.requestDevice({filters:[{}]});
+            log("Selected device: vendor " + dev.vendorId + " product " + dev.productId);
+          } catch(err){ log("USB error: " + err.message); }
+        });
+      }
+    });
+  }
+
+  function openSettings(){
+    createWindow({
+      title:"Settings",
+      width:660, height:480,
+      html:`
+        <div class="toolbar">
+          <button class="btn" id="setOffice">Office profile</button>
+          <button class="btn" id="setGaming">Gaming profile</button>
+          <button class="btn" id="setDev">Dev profile</button>
+          <button class="btn" id="toggleTheme">Toggle theme</button>
+        </div>
+        <div class="hint">Profiles only change desktop shortcuts. Theme toggles a light background for readability.</div>
+      `,
+      onmount(el){
+        el.querySelector("#setOffice").onclick = () => applyProfile("office");
+        el.querySelector("#setGaming").onclick = () => applyProfile("gaming");
+        el.querySelector("#setDev").onclick = () => applyProfile("dev");
+        el.querySelector("#toggleTheme").onclick = toggleTheme;
+      }
+    });
+  }
+
+  function openAbout(){
+    createWindow({
+      title:"About",
+      html:`
+        <div class="hint">Ultra-stable build: it avoids writing the raw closing delimiter of script tags anywhere in this file. Deck exports include a self-contained script using safe string assembly.</div>
+      `
+    });
+  }
+
+  function openCode(){
+    createWindow({
+      title:"Code (Mini)",
+      width:760,height:520,
+      html:`
+        <div class="toolbar"><button class="btn" id="run">Run (console.log)</button><button class="btn" id="save">Save</button><button class="btn" id="open">Open</button></div>
+        <textarea id="codeArea" style="width:100%;height:360px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:#0b1117;color:var(--text);padding:10px" spellcheck="false">console.log("Hello, Marcelo!")</textarea>
+        <div class="editor" id="codeOut" style="font-family:ui-monospace,monospace;white-space:pre;min-height:120px"></div>
+      `,
+      onmount(el){
+        const ta = el.querySelector("#codeArea");
+        const out = el.querySelector("#codeOut");
+        const log = (...a)=>{ out.textContent += a.join(" ") + "\\n"; out.scrollTop=out.scrollHeight; };
+        el.querySelector("#run").onclick = () => { out.textContent=""; try{ new Function("console", ta.value)({log}); }catch(e){ log("Error:", e.message); } };
+        el.querySelector("#save").onclick = () => {
+          const blob = new Blob([ta.value], {type:"text/plain"});
+          const a = document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="code.js"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+        };
+        el.querySelector("#open").onclick = async () => {
+          try{
+            const [fileHandle] = await window.showOpenFilePicker({types:[{description:"JavaScript",accept:{'text/javascript':['.js'],'text/plain':['.txt']}}]});
+            const f = await fileHandle.getFile();
+            ta.value = await f.text();
+          }catch(err){ log("Open canceled"); }
+        };
+      }
+    });
+  }
+
+  // --- Top/bottom UI --- //
+  $("#btnStart").addEventListener("click", () => { toggle(startMenu); hide(searchPanel); hide(ctx); });
+  $("#btnSearch").addEventListener("click", () => { toggle(searchPanel); hide(startMenu); hide(ctx); $("#searchBox").focus(); });
+  $("#searchGo").addEventListener("click", () => {
+    const q = $("#searchBox").value.trim();
+    if (q) window.open("https://duckduckgo.com/?q="+encodeURIComponent(q), "_blank");
+  });
+
+  function toggleTheme(){
+    if (document.documentElement.dataset.theme === "light"){
+      document.documentElement.dataset.theme = "";
+      document.body.style.background = "radial-gradient(1200px 600px at 20% 15%,#1172d1 0%,#0d1830 55%,#070b12 100%)";
+      document.body.style.color = "";
+    } else {
+      document.documentElement.dataset.theme = "light";
+      document.body.style.background = "linear-gradient(180deg,#f6f7f9,#e9eef5)";
+      document.body.style.color = "#111";
+    }
+  }
+  $("#btnTheme").addEventListener("click", toggleTheme);
+  $("#btnShot").addEventListener("click", () => window.print());
+
+  // Start menu launchers
+  $$("#startMenu .app").forEach(a => a.addEventListener("click", () => launch(a.dataset.open)));
+
+  // Close panels when clicking outside
+  document.addEventListener("click", (e) => {
+    const s = e.target.closest("#startMenu, #btnStart");
+    const sp = e.target.closest("#searchPanel, #btnSearch");
+    const c = e.target.closest("#ctx");
+    if (!s) hide(startMenu);
+    if (!sp) hide(searchPanel);
+    if (!c) hide(ctx);
+  });
+
+  // Context menu
+  document.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    ctx.style.left = e.clientX + "px";
+    ctx.style.top  = e.clientY + "px";
+    show(ctx);
+    hide(startMenu); hide(searchPanel);
+  });
+  $$("#ctx .item").forEach(x => x.addEventListener("click", () => {
+    const act = x.dataset.act;
+    hide(ctx);
+    if (act === "newText"){ openWriter(); }
+    if (act === "openTerminal"){ openTerminal(); }
+    if (act === "applyGaming"){ applyProfile("gaming"); }
+    if (act === "applyOffice"){ applyProfile("office"); }
+    if (act === "applyDev"){ applyProfile("dev"); }
+    if (act === "settings"){ openSettings(); }
+    if (act === "theme"){ toggleTheme(); }
+  }));
+
+  // Setup
+  $$("#setup .preset").forEach(p => p.addEventListener("click", () => {
+    const prof = p.dataset.profile;
+    applyProfile(prof);
+    hide(setup);
+  }));
+
+  ensureProfile();
+  window.NOVA = {launch, applyProfile};
+
+})();</script>
+</body>
+</html>
