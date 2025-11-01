@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NovaOS UltraPlus MAX — Marcelo (PRO)</title>
+<style>
+  :root{ --bg1:#0b0f14; --bg2:#0a1c33; --text:#e6eef6; --muted:#a9b3bd; --accent:#41b2ff;
+         --panel:#141a21; --panel2:#0f141a; --glass:rgba(20,26,33,.72); --shadow:0 8px 30px rgba(0,0,0,.45); --blur:blur(8px); }
+  html,body{height:100%;margin:0;background:radial-gradient(1200px 600px at 20% 15%,#1172d1 0%,#0d1830 55%,#070b12 100%);color:var(--text);
+            font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial,"Noto Sans",sans-serif;overflow:hidden;}
+  #desktop{position:fixed;inset:0;display:flex;flex-direction:column;}
+  #workspace{position:relative;flex:1;overflow:hidden;}
+  #icons{position:absolute;inset:0;display:grid;grid-template-columns:repeat(auto-fill,116px);gap:10px;align-content:start;padding:14px;z-index:1}
+  .icon{width:116px;height:110px;border-radius:12px;background:rgba(255,255,255,.04);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;border:1px solid rgba(255,255,255,.06)}
+  .icon:hover{background:rgba(255,255,255,.08)} .icon .emoji{font-size:28px} .icon .label{font-size:12px;opacity:.9;text-align:center}
+  #windows{position:absolute;inset:0;z-index:10}
+  .win{position:absolute;min-width:360px;min-height:220px;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;z-index:10}
+  .titlebar{height:38px;display:flex;align-items:center;gap:8px;padding:0 10px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0));cursor:grab;user-select:none}
+  .title{flex:1;font-weight:700}
+  .win .btn{border:0;background:rgba(255,255,255,.08);color:var(--text);border-radius:8px;padding:6px 10px;cursor:pointer}
+  .win .btn:active{transform:translateY(1px)}
+  .content{padding:12px;background:var(--panel2);height:calc(100% - 38px);overflow:auto}
+  .hint{opacity:.85;font-size:13px;line-height:1.4}
+  #taskbar{height:54px;background:linear-gradient(180deg,rgba(8,12,18,.7),rgba(8,12,18,.95));backdrop-filter:var(--blur);display:flex;align-items:center;gap:.5rem;
+           padding:6px 10px;border-top:1px solid rgba(255,255,255,.06);box-shadow:0 -2px 16px rgba(0,0,0,.5);z-index:40}
+  .tb-btn{appearance:none;border:0;border-radius:10px;background:rgba(255,255,255,.06);color:var(--text);padding:8px 14px;cursor:pointer;font-weight:600}
+  .tb-btn:active{transform:translateY(1px)}
+  #tasks{display:flex;gap:6px;align-items:center;max-width:55vw;overflow:auto}
+  .task{border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.06);border-radius:10px;padding:6px 10px;cursor:pointer;white-space:nowrap}
+  .task.active{background:rgba(255,255,255,.12)}
+  .spacer{flex:1}
+  #clock{opacity:.8;font-variant-numeric:tabular-nums}
+  #startMenu{position:absolute;left:8px;bottom:60px;width:450px;max-height:60vh;background:var(--glass);backdrop-filter:var(--blur);border:1px solid rgba(255,255,255,.08);
+             border-radius:14px;box-shadow:var(--shadow);overflow:auto;display:none;z-index:50}
+  #startMenu header{padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.06);font-weight:700;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,0))}
+  #startMenu .cat{padding:8px 14px;color:#9fc5ff;font-weight:600;opacity:.95}
+  #startMenu .app{display:flex;gap:.75rem;align-items:center;padding:10px 14px;cursor:pointer}
+  #startMenu .app:hover{background:rgba(255,255,255,.06)} #startMenu .emoji{font-size:20px}
+  #searchPanel{position:absolute;left:80px;bottom:60px;width:520px;background:var(--glass);backdrop-filter:var(--blur);border:1px solid rgba(255,255,255,.08);border-radius:14px;box-shadow:var(--shadow);display:none;z-index:50}
+  #searchPanel .row{display:flex;gap:8px;padding:10px}
+  #searchPanel input{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.06);color:var(--text)}
+  #setup{position:absolute;inset:0;background:rgba(0,0,0,.35);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:60}
+  .sheet{width:min(880px,92vw);background:var(--glass);backdrop-filter:var(--blur);border:1px solid rgba(255,255,255,.08);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+  .sheet header{padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.08);font-size:18px;font-weight:800}
+  .sheet .body{padding:16px 18px;display:grid;gap:16px}
+  .presets{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+  .preset{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);padding:12px;border-radius:12px;cursor:pointer}
+  .preset:hover{background:rgba(255,255,255,.08)}
+  .small{opacity:.8;font-size:12px}
+  #ctx{position:absolute;min-width:200px;background:var(--glass);backdrop-filter:var(--blur);border:1px solid rgba(255,255,255,.08);border-radius:12px;box-shadow:var(--shadow);display:none;z-index:70}
+  #ctx .item{padding:8px 12px;cursor:pointer} #ctx .item:hover{background:rgba(255,255,255,.08)} #ctx .sep{height:1px;background:rgba(255,255,255,.08);margin:4px 0}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .toolbar .btn{padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);cursor:pointer}
+  .editor{min-height:320px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#0b1117;padding:10px}
+  .editor[contenteditable="true"]:focus{outline:2px solid var(--accent)}
+  table.grid{border-collapse:collapse;width:100%;background:#0b1117}
+  table.grid td, table.grid th{border:1px solid rgba(255,255,255,.08);padding:6px;min-width:80px}
+  .slides{display:grid;gap:10px} .slide{border:1px dashed rgba(255,255,255,.15);padding:10px;border-radius:8px;background:#0b1117}
+  .slide[contenteditable="true"]:focus{outline:2px solid var(--accent)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .kv{display:grid;grid-template-columns:140px 1fr;gap:10px;align-items:center}
+  .kbd{font-family:ui-monospace,monospace;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);padding:2px 6px;border-radius:6px}
+  /* App Center */
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+  .card{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);border-radius:12px;padding:10px}
+  .card h4{margin:4px 0 8px 0} .card .desc{opacity:.85;font-size:13px;min-height:40px}
+  .chip{display:inline-block;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.08);font-size:12px;margin-right:6px}
+  .btnline{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="desktop">
+  <div id="workspace">
+    <div id="icons" aria-label="desktop icons"></div>
+    <div id="windows" aria-label="windows layer"></div>
+    <div id="setup" role="dialog" aria-modal="true">
+      <div class="sheet">
+        <header>Welcome, Marcelo — pick your default profile</header>
+        <div class="body">
+          <div class="presets">
+            <div class="preset" data-profile="gaming"><div style="font-size:22px">🎮 Gaming</div><div class="small">Steam / Minecraft shortcuts.</div></div>
+            <div class="preset" data-profile="office"><div style="font-size:22px">📁 Office</div><div class="small">Aurora Office (Writer, Grid, Decks).</div></div>
+            <div class="preset" data-profile="dev"><div style="font-size:22px">🛠️ Dev</div><div class="small">Code + Terminal + VMs.</div></div>
+          </div>
+          <div class="small">This only changes desktop icons. All apps remain available in Start.</div>
+        </div>
+      </div>
+    </div>
+    <div id="startMenu" role="menu">
+      <header>Start</header>
+      <div class="cat">System</div>
+      <div class="app" data-open="settings"><div class="emoji">⚙️</div><div>Settings</div></div>
+      <div class="app" data-open="setup"><div class="emoji">🧰</div><div>Setup</div></div>
+      <div class="app" data-open="about"><div class="emoji">ℹ️</div><div>About</div></div>
+      <div class="cat">Office</div>
+      <div class="app" data-open="office"><div class="emoji">📁</div><div>Aurora Office</div></div>
+      <div class="app" data-open="writer"><div class="emoji">📝</div><div>Writer</div></div>
+      <div class="app" data-open="grid"><div class="emoji">📊</div><div>Grid</div></div>
+      <div class="app" data-open="decks"><div class="emoji">🎞️</div><div>Decks</div></div>
+      <div class="cat">Dev & Tools</div>
+      <div class="app" data-open="code"><div class="emoji">🧪</div><div>Code</div></div>
+      <div class="app" data-open="terminal"><div class="emoji">💻</div><div>Terminal (Bridge)</div></div>
+      <div class="app" data-open="vm"><div class="emoji">🖥️</div><div>Virtual Machines</div></div>
+      <div class="app" data-open="store"><div class="emoji">🛒</div><div>App Center</div></div>
+      <div class="app" data-open="network"><div class="emoji">📶</div><div>Network Center</div></div>
+      <div class="cat">Gaming</div>
+      <div class="app" data-open="gamehub"><div class="emoji">🎮</div><div>Game Hub</div></div>
+      <div class="app" data-open="steam"><div class="emoji">🧩</div><div>Steam</div></div>
+      <div class="app" data-open="minecraft"><div class="emoji">⛏️</div><div>Minecraft</div></div>
+    </div>
+    <div id="searchPanel">
+      <div class="row">
+        <input id="searchBox" placeholder="Search the web (DuckDuckGo)…" spellcheck="false">
+        <button class="tb-btn" id="searchGo">Search</button>
+      </div>
+    </div>
+    <div id="ctx">
+      <div class="item" data-act="newText">New → Text document</div>
+      <div class="item" data-act="openTerminal">Open Terminal here</div>
+      <div class="item" data-act="applyGaming">Switch to Gaming profile</div>
+      <div class="item" data-act="applyOffice">Switch to Office profile</div>
+      <div class="item" data-act="applyDev">Switch to Dev profile</div>
+      <div class="sep"></div>
+      <div class="item" data-act="settings">Settings</div>
+      <div class="item" data-act="theme">Toggle theme</div>
+    </div>
+  </div>
+  <div id="taskbar">
+    <button class="tb-btn" id="btnStart">▣ Start</button>
+    <button class="tb-btn" id="btnSearch">🔎 Search</button>
+    <div id="tasks"></div>
+    <div class="spacer"></div>
+    <button class="tb-btn" id="btnTheme">🌓 Theme</button>
+    <button class="tb-btn" id="btnShot">📸 Shot</button>
+    <div id="clock"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+  const icons = $("#icons");
+  const winLayer = $("#windows");
+  const startMenu = $("#startMenu");
+  const searchPanel = $("#searchPanel");
+  const setup = $("#setup");
+  const ctx = $("#ctx");
+  const clock = $("#clock");
+  const tasks = $("#tasks");
+
+  // Global error pipe into a small overlay to make debugging easy
+  window.addEventListener("error", (e)=>{
+    console && console.error && console.error(e.error || e.message);
+  });
+
+  function show(el){ el.style.display = "block"; }
+  function hide(el){ el.style.display = "none"; }
+  function toggle(el){ el.style.display = (el.style.display === "block") ? "none" : "block"; }
+
+  // ----- Clock / locale -----
+  const timePrefs = { tz: localStorage.getItem("nova.tz") || "", hr24: localStorage.getItem("nova.hr24") === "1" };
+  function fmtTime(d){
+    const opts = { hour:'2-digit', minute:'2-digit', hour12: !timePrefs.hr24, timeZone: timePrefs.tz || undefined };
+    return new Intl.DateTimeFormat([], opts).format(d);
+  }
+  function fmtDate(d){
+    const opts = { year:'numeric', month:'short', day:'2-digit', timeZone: timePrefs.tz || undefined };
+    return new Intl.DateTimeFormat([], opts).format(d);
+  }
+  function nowClock(){
+    const d = new Date();
+    clock.textContent = fmtTime(d) + " • " + fmtDate(d);
+  }
+  setInterval(nowClock, 1000); nowClock();
+
+  // --- Window manager with minimize-to-taskbar and real maximize/restore --- //
+  let z = 20, activeWin = null;
+  function bringToFront(w){ z += 1; w.style.zIndex = z; activeWin = w; }
+
+  function createWindow(opts){
+    const w = document.createElement("div");
+    w.className = "win";
+    const x = 60 + Math.random()*80;
+    const y = 60 + Math.random()*60;
+    w.style.left = x + "px";
+    w.style.top  = y + "px";
+    w.style.width = (opts.width || 600) + "px";
+    w.style.height = (opts.height || 420) + "px";
+    w.dataset.state = "normal"; // normal | max | min
+    w.dataset.restore = JSON.stringify({left:x, top:y, width:opts.width||600, height:opts.height||420});
+    w.innerHTML = `
+      <div class="titlebar">
+        <div class="title">${opts.title || "Window"}</div>
+        <button class="btn" data-act="min" title="Minimize">—</button>
+        <button class="btn" data-act="max" title="Maximize">□</button>
+        <button class="btn" data-act="close" title="Close">✕</button>
+      </div>
+      <div class="content"></div>
+    `;
+    const content = w.querySelector(".content");
+    if (opts.html) content.innerHTML = opts.html;
+    if (opts.onmount) opts.onmount(content, w);
+    winLayer.appendChild(w);
+    bringToFront(w);
+    makeDraggable(w);
+    w.addEventListener("pointerdown", () => bringToFront(w));
+
+    // Task button
+    const task = document.createElement("button");
+    task.className = "task";
+    task.textContent = opts.title || "Window";
+    task.addEventListener("click", () => {
+      if (w.dataset.state === "min") { restoreWindow(w); }
+      bringToFront(w); w.style.display="block";
+    });
+    tasks.appendChild(task);
+    w._taskBtn = task;
+
+    const onClose = (e)=>{ e.stopPropagation(); task.remove(); w.remove(); };
+    const onMin = (e)=>{ e.stopPropagation(); minimizeWindow(w); };
+    const onMax = (e)=>{ e.stopPropagation(); toggleMaximize(w); };
+
+    w.querySelector('[data-act="close"]').addEventListener("click", onClose);
+    w.querySelector('[data-act="min"]').addEventListener("click", onMin);
+    w.querySelector('[data-act="max"]').addEventListener("click", onMax);
+    w.querySelector(".titlebar").addEventListener("dblclick", onMax);
+    return w;
+  }
+
+  function minimizeWindow(w){
+    if (w.dataset.state === "min") return;
+    w.dataset.state = "min";
+    w.style.display = "none";
+    if (w._taskBtn) w._taskBtn.classList.add("active");
+  }
+
+  function restoreWindow(w){
+    const r = JSON.parse(w.dataset.restore || "{}");
+    w.dataset.state = "normal";
+    w.style.display = "block";
+    w.style.left = (r.left||60) + "px";
+    w.style.top = (r.top||60) + "px";
+    w.style.width = (r.width||640) + "px";
+    w.style.height = (r.height||420) + "px";
+    if (w._taskBtn) w._taskBtn.classList.remove("active");
+    bringToFront(w);
+  }
+
+  function toggleMaximize(w){
+    if (w.dataset.state === "max"){
+      restoreWindow(w);
+    } else {
+      const rect = w.getBoundingClientRect();
+      w.dataset.restore = JSON.stringify({left:rect.left, top:rect.top, width:rect.width, height:rect.height});
+      w.dataset.state = "max";
+      w.style.left = "6px"; w.style.top="6px";
+      w.style.width = (window.innerWidth-12)+"px"; w.style.height=(window.innerHeight-66)+"px";
+      if (w._taskBtn) w._taskBtn.classList.remove("active");
+      bringToFront(w);
+    }
+  }
+
+  function makeDraggable(win){
+    const bar = win.querySelector(".titlebar");
+    let startX=0, startY=0, winX=0, winY=0, moving=false, rafId=0, pointerId=null;
+    const onMove = (e) => {
+      if (!moving || win.dataset.state === "max") return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const nx = winX + dx;
+      const ny = winY + dy;
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => { win.style.left = nx + "px"; win.style.top  = ny + "px"; });
+    };
+    const onUp = () => {
+      moving = false;
+      if (pointerId!=null) bar.releasePointerCapture(pointerId);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      bar.style.cursor="grab";
+      const rect = win.getBoundingClientRect();
+      win.dataset.restore = JSON.stringify({left:rect.left, top:rect.top, width:rect.width, height:rect.height});
+    };
+    bar.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      pointerId = e.pointerId;
+      bar.setPointerCapture(pointerId);
+      moving = true;
+      startX = e.clientX; startY = e.clientY;
+      const rect = win.getBoundingClientRect();
+      winX = rect.left; winY = rect.top;
+      bar.style.cursor="grabbing";
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    });
+  }
+
+  // --- Desktop icons and profiles --- //
+  const apps = {
+    setup: openSetup, gamehub: openGameHub, steam: openSteamApp, minecraft: openMinecraftApp,
+    office: openOffice, writer: openWriter, grid: openGrid, decks: openDecks,
+    terminal: openTerminal, vm: openVMs, store: openStore, network: openNetwork,
+    about: openAbout, code: openCode, settings: openSettings
+  };
+
+  const profiles = {
+    gaming: [
+      {id:"gamehub", label:"Game Hub", emoji:"🎮"},
+      {id:"steam", label:"Steam", emoji:"🧩"},
+      {id:"minecraft", label:"Minecraft", emoji:"⛏️"}
+    ],
+    office: [
+      {id:"office", label:"Aurora Office", emoji:"📁"},
+      {id:"writer", label:"Writer", emoji:"📝"},
+      {id:"grid", label:"Grid", emoji:"📊"},
+      {id:"decks", label:"Decks", emoji:"🎞️"}
+    ],
+    dev: [
+      {id:"code", label:"Code", emoji:"🧪"},
+      {id:"terminal", label:"Terminal", emoji:"💻"},
+      {id:"vm", label:"Virtual Machines", emoji:"🖥️"},
+      {id:"store", label:"App Center", emoji:"🛒"}
+    ]
+  };
+
+  function clearIcons(){ icons.innerHTML = ""; }
+  function addIcon(id,label,emoji){
+    const d = document.createElement("div");
+    d.className="icon";
+    d.innerHTML = `<div class="emoji">${emoji}</div><div class="label">${label}</div>`;
+    d.addEventListener("click", () => launch(id));
+    icons.appendChild(d);
+  }
+  function applyProfile(p){
+    clearIcons();
+    (profiles[p]||[]).forEach(x => addIcon(x.id,x.label,x.emoji));
+    localStorage.setItem("nova.profile", p);
+    localStorage.setItem("nova.profile.set","1");
+  }
+  function ensureProfile(){
+    const preset = localStorage.getItem("nova.profile");
+    if (!localStorage.getItem("nova.profile.set")){
+      show(setup);
+    } else {
+      applyProfile(preset || "office");
+    }
+  }
+
+  // --- App launchers --- //
+  function launch(id){ const fn = apps[id]; if (typeof fn === "function"){ fn(); } hide(startMenu); }
+
+  // --- Apps --- //
+  function openSetup(){ show(setup); }
+
+  function openGameHub(){
+    createWindow({
+      title:"Game Hub",
+      width:640, height:460,
+      html:`
+      <div class="hint">Official links only. The deep link uses your OS handler for Steam.</div>
+      <div class="toolbar" style="margin-top:8px">
+        <button class="btn" id="openSteam">Open Steam</button>
+        <button class="btn" id="installSteam">Install Steam (official)</button>
+        <button class="btn" id="openMinecraft">Minecraft</button>
+        <button class="btn" id="openPrism">Prism Launcher</button>
+      </div>`,
+      onmount(el){
+        el.querySelector("#openSteam").addEventListener("click", () => location.href="steam://open/main");
+        el.querySelector("#installSteam").addEventListener("click", () => window.open("https://store.steampowered.com/about/","_blank"));
+        el.querySelector("#openMinecraft").addEventListener("click", () => openMinecraftApp());
+        el.querySelector("#openPrism").addEventListener("click", () => window.open("https://prismlauncher.org/","_blank"));
+      }
+    });
+  }
+
+  function openSteamApp(){
+    createWindow({
+      title:"Steam",
+      html:`
+        <div class="toolbar">
+          <button class="btn" id="steamOpen">Open Steam</button>
+          <button class="btn" id="steamInstall">Install from official site</button>
+        </div>
+        <div class="hint">If your OS handles the Steam protocol, "Open Steam" will switch to the client.</div>`,
+      onmount(el){
+        el.querySelector("#steamOpen").addEventListener("click", () => location.href="steam://open/main");
+        el.querySelector("#steamInstall").addEventListener("click", () => window.open("https://store.steampowered.com/about/","_blank"));
+      }
+    });
+  }
+
+  function openMinecraftApp(){
+    createWindow({
+      title:"Minecraft Launcher",
+      html:`
+      <div class="toolbar">
+        <button class="btn" id="mcJava">Java + Bedrock (official)</button>
+        <button class="btn" id="mcBedrock">Bedrock (Microsoft Store)</button>
+        <button class="btn" id="mcPrism">Prism Launcher</button>
+      </div>`,
+      onmount(el){
+        el.querySelector("#mcJava").addEventListener("click", () => window.open("https://www.minecraft.net/en-us/store/minecraft-java-bedrock-edition-pc","_blank"));
+        el.querySelector("#mcBedrock").addEventListener("click", () => window.open("https://apps.microsoft.com/detail/9pgw18npbzv5","_blank"));
+        el.querySelector("#mcPrism").addEventListener("click", () => window.open("https://prismlauncher.org/","_blank"));
+      }
+    });
+  }
+
+  function openOffice(){
+    createWindow({
+      title:"Aurora Office",
+      html:`
+        <div class="toolbar">
+          <button class="btn" id="oWriter">Open Writer</button>
+          <button class="btn" id="oGrid">Open Grid</button>
+          <button class="btn" id="oDecks">Open Decks</button>
+        </div>
+        <div class="hint">Editors store work locally. Use browser print to create PDFs.</div>`,
+      onmount(el){
+        el.querySelector("#oWriter").addEventListener("click", openWriter);
+        el.querySelector("#oGrid").addEventListener("click", openGrid);
+        el.querySelector("#oDecks").addEventListener("click", openDecks);
+      }
+    });
+  }
+
+  function openWriter(){
+    createWindow({
+      title:"Writer",
+      width:820,height:560,
+      html:`
+        <div class="toolbar row">
+          <button class="btn" data-cmd="bold"><b>B</b></button>
+          <button class="btn" data-cmd="italic"><i>I</i></button>
+          <button class="btn" data-cmd="underline"><u>U</u></button>
+          <button class="btn" data-cmd="insertUnorderedList">• List</button>
+          <button class="btn" data-cmd="insertOrderedList">1. List</button>
+          <button class="btn" data-cmd="justifyLeft">Left</button>
+          <button class="btn" data-cmd="justifyCenter">Center</button>
+          <button class="btn" data-cmd="justifyRight">Right</button>
+          <button class="btn" id="h1">H1</button>
+          <button class="btn" id="h2">H2</button>
+          <button class="btn" id="h3">H3</button>
+          <button class="btn" id="btnBreak">Page break</button>
+          <button class="btn" id="btnExportHTML">Export HTML</button>
+          <button class="btn" id="btnWordCount">Word count</button>
+        </div>
+        <div class="editor" id="writerArea" contenteditable="true" style="min-height:400px">Start writing your book…</div>
+        <style id="printCSS">@media print{ body{ background:#fff !important; color:#000 } .win{ box-shadow:none } .editor{ page-break-inside:auto } .page{ page-break-after:always } }</style>`,
+      onmount(el){
+        const editor = el.querySelector("#writerArea");
+        el.querySelectorAll("[data-cmd]").forEach(b => b.addEventListener("click", () => {
+          document.execCommand(b.dataset.cmd,false,null); editor.focus();
+        }));
+        el.querySelector("#h1").onclick = ()=>{ document.execCommand("formatBlock", false, "h1"); editor.focus(); };
+        el.querySelector("#h2").onclick = ()=>{ document.execCommand("formatBlock", false, "h2"); editor.focus(); };
+        el.querySelector("#h3").onclick = ()=>{ document.execCommand("formatBlock", false, "h3"); editor.focus(); };
+        el.querySelector("#btnBreak").onclick = ()=>{ const br=document.createElement("div"); br.className="page"; br.innerHTML=""; editor.appendChild(br); };
+        el.querySelector("#btnExportHTML").onclick = ()=>{
+          const blob = new Blob([`<!doctype html><meta charset="utf-8"><title>Writer Export</title>${editor.innerHTML}`],{type:"text/html"});
+          const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download="writer-export.html"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+        };
+        el.querySelector("#btnWordCount").onclick = ()=>{
+          const text = editor.innerText || "";
+          alert("Words: " + (text.trim().split(/\s+/).filter(Boolean).length));
+        };
+      }
+    });
+  }
+
+  function openGrid(){
+    createWindow({
+      title:"Grid (Spreadsheet)",
+      width:840,height:560,
+      html:`
+        <div class="toolbar">
+          <button class="btn" id="csvExport">Export CSV</button>
+          <button class="btn" id="addRow">+ Row</button>
+          <button class="btn" id="addCol">+ Col</button>
+          <button class="btn" id="sumSel">Sum selection</button>
+        </div>
+        <table class="grid" id="grid"></table>
+        <div class="hint">Basic spreadsheet with CSV export. Enter numbers and select cells to sum.</div>`,
+      onmount(el){
+        const table = el.querySelector("#grid");
+        function init(r=12,c=8){
+          table.innerHTML = "";
+          const head = document.createElement("tr");
+          head.innerHTML = "<th></th>" + Array.from({length:c},(_,i)=>`<th>${String.fromCharCode(65+i)}</th>`).join("");
+          table.appendChild(head);
+          for(let i=0;i<r;i++){
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<th>${i+1}</th>` + Array.from({length:c},()=>`<td contenteditable="true"></td>`).join("");
+            table.appendChild(tr);
+          }
+        }
+        init();
+        el.querySelector("#addRow").onclick = ()=>{
+          const c = table.rows[0].cells.length-1;
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<th>${table.rows.length}</th>` + Array.from({length:c},()=>`<td contenteditable="true"></td>`).join("");
+          table.appendChild(tr);
+        };
+        el.querySelector("#addCol").onclick = ()=>{
+          const rows = table.rows;
+          const newIdx = rows[0].cells.length-1;
+          rows[0].insertCell().outerHTML = `<th>${String.fromCharCode(65+newIdx)}</th>`;
+          for(let i=1;i<rows.length;i++){
+            const td = document.createElement("td");
+            td.setAttribute("contenteditable","true");
+            rows[i].appendChild(td);
+          }
+        };
+        el.querySelector("#sumSel").onclick = ()=>{
+          const sel = getSelection();
+          if (!sel || !sel.rangeCount) return;
+          const range = sel.getRangeAt(0);
+          const cells = new Set();
+          table.querySelectorAll("td").forEach(td=>{
+            const r = document.createRange();
+            r.selectNodeContents(td);
+            if (range.intersectsNode(td)) cells.add(td);
+          });
+          let s = 0;
+          cells.forEach(td => { const v = parseFloat(td.textContent); if (!isNaN(v)) s += v; });
+          alert("Sum of selected cells: " + s);
+        };
+        el.querySelector("#csvExport").onclick = ()=>{
+          const rows = Array.from(table.querySelectorAll("tr")).slice(1);
+          const data = rows.map(tr => Array.from(tr.querySelectorAll("td")).map(td => `"${(td.textContent||"").replace(/"/g,'""')}"`).join(",")).join("\n");
+          const blob = new Blob([data], {type:"text/csv"});
+          const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download="grid.csv"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+        };
+      }
+    });
+  }
+
+  function openDecks(){
+    createWindow({
+      title:"Decks (Slides)",
+      width:880,height:600,
+      html:`
+        <div class="toolbar">
+          <button class="btn" id="addSlide">+ Slide</button>
+          <button class="btn" id="exportDeck">Export HTML</button>
+        </div>
+        <div class="slides" id="slides"></div>`,
+      onmount(el){
+        const slides = el.querySelector("#slides");
+        function addSlide(text="Slide"){
+          const s = document.createElement("div"); s.className="slide"; s.setAttribute("contenteditable","true"); s.textContent = text; slides.appendChild(s);
+        }
+        addSlide("Title slide");
+        el.querySelector("#addSlide").addEventListener("click", ()=>addSlide("New slide"));
+        el.querySelector("#exportDeck").addEventListener("click", ()=>{
+          const frames = Array.from(slides.querySelectorAll(".slide")).map(s => `<section>${s.innerHTML}</section>`).join("\\n");
+          const openScr = "<scr"+"ipt>";
+          const closeScr = "</scr"+"ipt>";
+          const deckJS = "let i=0;const slides=[...document.querySelectorAll('section')];function show(){slides.forEach((s,idx)=>s.style.display=idx===i?'flex':'none')}document.addEventListener('keydown',e=>{if(['ArrowRight','PageDown',' '].includes(e.key)){i=Math.min(slides.length-1,i+1);show()}if(['ArrowLeft','PageUp','Backspace'].includes(e.key)){i=Math.max(0,i-1);show()}});window.onload=show;";
+          const html = "<!doctype html><meta charset='utf-8'><title>Deck</title>"+
+`<style>body{margin:0;font:16px/1.4 system-ui;background:#000;color:#fff}section{display:flex;align-items:center;justify-content:center;height:100vh;font-size:48px;padding:40px;box-sizing:border-box}section:nth-child(odd){background:#111}section:nth-child(even){background:#1a1a1a}</style>`+
+          openScr + deckJS + closeScr + frames;
+          const blob = new Blob([html],{type:"text/html"});
+          const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download="deck.html"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+        });
+      }
+    });
+  }
+
+  // --- Terminal with optional WebSocket bridge --- //
+  let BRIDGE = null;
+  function openTerminal(){
+    createWindow({
+      title:"Terminal (Bridge)",
+      width:900, height:560,
+      html:`
+        <div class="hint">Connect to a local WebSocket bridge to run real pacman/paru/flatpak. Without a bridge, this terminal is a safe demo.</div>
+        <div class="row">
+          <input id="wsUrl" value="ws://127.0.0.1:7723" style="width:280px;padding:6px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:inherit">
+          <button class="btn" id="wsConnect">Connect</button>
+          <button class="btn" id="wsDisconnect">Disconnect</button>
+          <span id="wsState" class="chip">disconnected</span>
+        </div>
+        <div class="toolbar">
+          <button class="btn" id="help">help</button>
+          <button class="btn" id="clear">clear</button>
+          <button class="btn" id="test">test (uname -a)</button>
+        </div>
+        <div class="editor" id="term" style="font-family:ui-monospace,Consolas,monospace;white-space:pre;line-height:1.4;min-height:320px"></div>
+        <input id="termInput" placeholder="type a command and hit Enter" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--text)">
+        <div class="hint">Security: keep your bridge bound to 127.0.0.1 and allow-list commands.</div>`,
+      onmount(el){
+        const term = el.querySelector("#term");
+        const input = el.querySelector("#termInput");
+        const wsUrl = el.querySelector("#wsUrl");
+        const wsState = el.querySelector("#wsState");
+        function print(s=""){ term.textContent += s + "\\n"; term.scrollTop = term.scrollHeight; }
+        function setState(s){ wsState.textContent = s; }
+        function execLocal(cmd){
+          cmd = cmd.trim();
+          if (!cmd) return;
+          if (cmd === "help"){
+            print("Local demo commands: help, echo <text>, date, whoami");
+          } else if (cmd.startsWith("echo ")){
+            print(cmd.slice(5));
+          } else if (cmd === "date"){
+            print(new Date().toString());
+          } else if (cmd === "whoami"){
+            print("web-user");
+          } else {
+            print("This is the local demo shell. Connect the bridge for real commands.");
+          }
+        }
+        function exec(cmd){
+          if (BRIDGE && BRIDGE.readyState === 1){
+            BRIDGE.send(cmd);
+          } else {
+            execLocal(cmd);
+          }
+        }
+        el.querySelector("#help").onclick = () => exec("help");
+        el.querySelector("#clear").onclick = () => term.textContent="";
+        el.querySelector("#test").onclick = () => exec("uname -a");
+        input.addEventListener("keydown", (e)=>{
+          if (e.key === "Enter") { exec(input.value); input.value=""; }
+        });
+        el.querySelector("#wsConnect").addEventListener("click", () => {
+          try{
+            if (BRIDGE) { try{ BRIDGE.close(); }catch(_){} BRIDGE = null; }
+            BRIDGE = new WebSocket(wsUrl.value);
+            setState("connecting");
+            BRIDGE.onopen = () => { setState("connected"); print("[bridge] connected"); };
+            BRIDGE.onmessage = (ev) => { print(String(ev.data)); };
+            BRIDGE.onclose = () => { setState("disconnected"); print("[bridge] closed"); };
+            BRIDGE.onerror = (err) => { setState("error"); print("[bridge] error"); };
+          }catch(err){ setState("error"); print("[bridge] error: " + err.message); }
+        });
+        el.querySelector("#wsDisconnect").addEventListener("click", ()=>{ if (BRIDGE){ BRIDGE.close(); BRIDGE=null; setState("disconnected"); } });
+        print("Nova Bridge shell. Type 'help'. Connect to run real commands.");
+      }
+    });
+  }
+
+  // --- VM Manager: web demos + remote viewer (noVNC) --- //
+  function openVMs(){
+    createWindow({
+      title:"Virtual Machines",
+      width:980, height:640,
+      html:`
+        <div class="hint">Two modes: (1) Web demo using an emulator (TinyCore/local ISO, 32‑bit). (2) Remote viewer to VNC for your own 64‑bit VMs (QEMU/VirtualBox/Proxmox).</div>
+        <div class="row">
+          <button class="btn" id="loadTiny">Boot TinyCore (web demo)</button>
+          <button class="btn" id="bootISO">Boot local ISO (web demo)</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <input id="vncUrl" value="ws://127.0.0.1:6080" style="width:260px;padding:6px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:inherit">
+          <button class="btn" id="vncConnect">Connect VNC</button>
+          <button class="btn" id="vncDisconnect">Disconnect</button>
+          <span class="chip">Use noVNC gateway/websockify on your host</span>
+        </div>
+        <div class="editor" id="vmLog" style="font-family:ui-monospace,monospace;white-space:pre;min-height:100px">status: idle</div>
+        <div id="vmArea" style="height:420px;background:#000;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center;color:#9ab">VM area</div>`,
+      onmount(el){
+        const log = (s)=>{ const v=el.querySelector("#vmLog"); v.textContent += "\\n" + s; v.scrollTop=v.scrollHeight; };
+        // v86 web demo
+        let v86Lib = null, emu = null;
+        function ensureV86(cb){
+          if (v86Lib){ cb(); return; }
+          const s = document.createElement("script"); s.src = "https://copy.sh/v86/build/v86_all.js";
+          s.onload = () => { v86Lib = window.V86; cb(); };
+          s.onerror = () => log("Failed to load v86 library."); document.body.appendChild(s);
+        }
+        el.querySelector("#loadTiny").onclick = () => {
+          ensureV86(() => {
+            if (emu) { emu.stop(); emu=null; }
+            el.querySelector("#vmArea").innerHTML = "";
+            emu = new window.V86Starter({
+              wasm_path: "https://copy.sh/v86/build/v86.wasm",
+              memory_size: 64 * 1024 * 1024,
+              vga_memory_size: 8 * 1024 * 1024,
+              screen_container: el.querySelector("#vmArea"),
+              bios: { url: "https://copy.sh/v86/bios/seabios.bin" },
+              vga_bios: { url: "https://copy.sh/v86/bios/vgabios.bin" },
+              cdrom: { url: "https://copy.sh/v86/images/tinycore.iso" },
+              autostart: true
+            });
+            log("Booting TinyCore… (web demo, 32‑bit).");
+          });
+        };
+        el.querySelector("#bootISO").onclick = async () => {
+          ensureV86(async () => {
+            try{
+              const [fh] = await window.showOpenFilePicker({types:[{description:"ISO",accept:{'application/octet-stream':['.iso']}}]});
+              const file = await fh.getFile();
+              el.querySelector("#vmArea").innerHTML = "";
+              if (emu) { emu.stop(); emu=null; }
+              emu = new window.V86Starter({
+                wasm_path: "https://copy.sh/v86/build/v86.wasm",
+                memory_size: 64 * 1024 * 1024,
+                vga_memory_size: 8 * 1024 * 1024,
+                screen_container: el.querySelector("#vmArea"),
+                bios: { url: "https://copy.sh/v86/bios/seabios.bin" },
+                vga_bios: { url: "https://copy.sh/v86/bios/vgabios.bin" },
+                cdrom: { buffer: await file.arrayBuffer() },
+                autostart: true
+              });
+              log("Booting local ISO (compatibility depends on ISO, web demo is 32‑bit).");
+            }catch(err){ log("ISO open canceled or failed."); }
+          });
+        };
+        // noVNC remote viewer
+        let RFB = null, rfb = null;
+        function ensureVNC(cb){
+          if (RFB){ cb(); return; }
+          const s = document.createElement("script");
+          s.src = "https://cdn.jsdelivr.net/npm/novnc/core/rfb.js";
+          s.onload = () => { RFB = window.RFB; cb(); };
+          s.onerror = () => log("Failed to load noVNC client.");
+          document.body.appendChild(s);
+        }
+        el.querySelector("#vncConnect").onclick = () => {
+          ensureVNC(() => {
+            try{
+              const url = el.querySelector("#vncUrl").value.trim();
+              el.querySelector("#vmArea").innerHTML = "";
+              const canvas = document.createElement("div"); canvas.style.width="100%"; canvas.style.height="100%"; el.querySelector("#vmArea").appendChild(canvas);
+              rfb = new RFB(canvas, url, {});
+              rfb.addEventListener("connect",   ()=>log("VNC: connected"));
+              rfb.addEventListener("disconnect",()=>log("VNC: disconnected"));
+              rfb.addEventListener("securityfailure", e=>log("VNC security error: "+(e.detail && e.detail.status)));
+              log("Connecting to VNC gateway…");
+            }catch(err){ log("VNC error: " + err.message); }
+          });
+        };
+        el.querySelector("#vncDisconnect").onclick = ()=>{ try{ if (rfb){ rfb.disconnect(); rfb=null; log("VNC: disconnect requested"); } }catch(_){} };
+      }
+    });
+  }
+
+  // --- App Center (Discover-like + Chaotic AUR) --- //
+  const APPS = [
+    {name:"Steam", tags:["gaming"], desc:"PC game store and client.", arch:"sudo pacman -S steam", flat:"flatpak install flathub com.valvesoftware.Steam", aur:"paru -S steam-manjaro"},
+    {name:"Lutris", tags:["gaming"], desc:"Launcher for games from many stores.", arch:"sudo pacman -S lutris", flat:"flatpak install flathub net.lutris.Lutris", aur:"paru -S lutris-git"},
+    {name:"Prism Launcher", tags:["gaming"], desc:"Minecraft launcher.", arch:"sudo pacman -S prismlauncher-qt5", flat:"flatpak install flathub org.prismlauncher.PrismLauncher", aur:"paru -S prismlauncher-qt5-git"},
+    {name:"OBS Studio", tags:["stream"], desc:"Streaming and recording.", arch:"sudo pacman -S obs-studio", flat:"flatpak install flathub com.obsproject.Studio", aur:"paru -S obs-studio-browser"},
+    {name:"Discord", tags:["chat"], desc:"Voice and chat.", arch:"sudo pacman -S discord", flat:"flatpak install flathub com.discordapp.Discord", aur:"paru -S discord-ptb"},
+    {name:"VS Code (OSS)", tags:["dev"], desc:"Editor (code).", arch:"sudo pacman -S code", flat:"flatpak install flathub com.visualstudio.code", aur:"paru -S visual-studio-code-bin"},
+    {name:"LibreOffice", tags:["office"], desc:"Office suite.", arch:"sudo pacman -S libreoffice-fresh", flat:"flatpak install flathub org.libreoffice.LibreOffice", aur:"paru -S libreoffice-fresh"},
+    {name:"GIMP", tags:["graphics"], desc:"Image editor.", arch:"sudo pacman -S gimp", flat:"flatpak install flathub org.gimp.GIMP", aur:"paru -S gimp-git"}
+  ];
+
+  function openStore(){
+    createWindow({
+      title:"App Center",
+      width:980,height:640,
+      html:`
+        <div class="row">
+          <span class="chip">Mode</span>
+          <button class="btn" id="modeArch">pacman</button>
+          <button class="btn" id="modeFlatpak">flatpak</button>
+          <button class="btn" id="modeAur">Chaotic AUR (paru)</button>
+          <span id="storeMode" class="chip">mode: pacman</span>
+          <button class="btn" id="initAur">Init Chaotic AUR (copy cmds)</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <input id="userPkg" placeholder="Custom package name (e.g., firefox)" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:inherit">
+          <button class="btn" id="installUser">Install custom</button>
+        </div>
+        <div class="cards" id="cards" style="margin-top:8px"></div>
+        <div class="hint">If a bridge is connected, Install sends the command to your host. If not, the command is copied so you can paste it into a real terminal.</div>`,
+      onmount(el){
+        let mode = "arch";
+        const cards = el.querySelector("#cards");
+        const modeChip = el.querySelector("#storeMode");
+        const initAurCmds = [
+          "sudo pacman -S --needed base-devel git",
+          "git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si",
+          "sudo pacman-key --recv-key FBA220DFC880C036 --keyserver keyserver.ubuntu.com",
+          "sudo pacman-key --lsign-key FBA220DFC880C036",
+          "echo -e '[chaotic-aur]\\nInclude = /etc/pacman.d/chaotic-mirrorlist' | sudo tee -a /etc/pacman.conf",
+          "sudo pacman -Syyu"
+        ].join("\\n");
+
+        function render(){
+          cards.innerHTML = "";
+          APPS.forEach(app => {
+            const cmd = mode==="arch"?app.arch : mode==="flat"?app.flat : app.aur;
+            const d = document.createElement("div");
+            d.className = "card";
+            d.innerHTML = `<h4>${app.name}</h4><div class="desc">${app.desc}</div>
+              <div>${app.tags.map(t=>`<span class="chip">${t}</span>`).join(" ")}</div>
+              <div class="btnline">
+                <button class="btn" data-cmd="${cmd}">Install</button>
+                <button class="btn" data-copy="${cmd}">Copy</button>
+                <button class="btn" data-show="1">Show cmds</button>
+              </div>`;
+            cards.appendChild(d);
+          });
+          cards.querySelectorAll("[data-cmd]").forEach(b => b.addEventListener("click", () => sendOrCopy(b.getAttribute("data-cmd")) ));
+          cards.querySelectorAll("[data-copy]").forEach(b => b.addEventListener("click", () => copyCmd(b.getAttribute("data-copy")) ));
+          cards.querySelectorAll("[data-show]").forEach(b => b.addEventListener("click", (e) => {
+            const p = e.currentTarget.closest(".card");
+            const appName = p.querySelector("h4").textContent;
+            const app = APPS.find(a=>a.name===appName);
+            alert("pacman: "+app.arch+"\\nflatpak: "+app.flat+"\\nAUR: "+app.aur);
+          }));
+          modeChip.textContent = "mode: " + (mode==="arch"?"pacman":(mode==="flat"?"flatpak":"paru/chaotic"));
+        }
+
+        function sendOrCopy(cmd){
+          if (window.BRIDGE && window.BRIDGE.readyState === 1){
+            window.BRIDGE.send(cmd);
+          } else {
+            copyCmd(cmd);
+          }
+        }
+        function copyCmd(cmd){ navigator.clipboard.writeText(cmd).then(()=>alert("Command copied: "+cmd)); }
+
+        render();
+        el.querySelector("#modeArch").onclick = () => { mode="arch"; render(); };
+        el.querySelector("#modeFlatpak").onclick = () => { mode="flat"; render(); };
+        el.querySelector("#modeAur").onclick = () => { mode="aur"; render(); };
+        el.querySelector("#initAur").onclick = () => copyCmd(initAurCmds);
+        el.querySelector("#installUser").onclick = () => {
+          const name = (el.querySelector("#userPkg").value || "").trim();
+          if (!name) return;
+          const cmd = mode==="arch" ? ("sudo pacman -S " + name)
+                    : mode==="flat" ? ("flatpak install flathub " + name)
+                    : ("paru -S " + name);
+          sendOrCopy(cmd);
+        };
+      }
+    });
+  }
+
+  function openNetwork(){
+    createWindow({
+      title:"Network Center",
+      width:680,height:460,
+      html:`
+        <div class="hint">Web Bluetooth/USB requires HTTPS or localhost.</div>
+        <div class="toolbar">
+          <button class="btn" id="btnBT">Web Bluetooth</button>
+          <button class="btn" id="btnUSB">Web USB</button>
+        </div>
+        <div id="netOut" class="editor" style="font-family:ui-monospace,monospace;white-space:pre;min-height:220px"></div>`,
+      onmount(el){
+        const out = el.querySelector("#netOut");
+        function log(s){ out.textContent += s + "\\n"; }
+        el.querySelector("#btnBT").onclick = async ()=>{
+          try{ if (!navigator.bluetooth){ log("Bluetooth not supported"); return; }
+            const dev = await navigator.bluetooth.requestDevice({acceptAllDevices:true});
+            log("Selected device: " + (dev && dev.name || "Unnamed"));
+          } catch(err){ log("BT error: " + err.message); }
+        };
+        el.querySelector("#btnUSB").onclick = async ()=>{
+          try{ if (!navigator.usb){ log("WebUSB not supported"); return; }
+            const dev = await navigator.usb.requestDevice({filters:[{}]});
+            log("Selected device: vendor " + dev.vendorId + " product " + dev.productId);
+          } catch(err){ log("USB error: " + err.message); }
+        };
+      }
+    });
+  }
+
+  function openSettings(){
+    createWindow({
+      title:"Settings",
+      width:740, height:520,
+      html:`
+        <div class="toolbar">
+          <button class="btn" id="setOffice">Office profile</button>
+          <button class="btn" id="setGaming">Gaming profile</button>
+          <button class="btn" id="setDev">Dev profile</button>
+          <button class="btn" id="toggleTheme">Toggle theme</button>
+        </div>
+        <div class="kv" style="margin-top:10px">
+          <div>Time zone</div>
+          <input id="tz" placeholder="e.g., America/New_York (blank = system)">
+          <div>Clock format</div>
+          <select id="hfmt"><option value="12h">12‑hour</option><option value="24h">24‑hour</option></select>
+          <div></div><button class="btn" id="saveClock">Save clock</button>
+        </div>
+        <div class="hint" style="margin-top:8px">Keyboard shortcuts: <span class="kbd">Ctrl+Alt+T</span> Terminal, <span class="kbd">Ctrl+Alt+S</span> Store, <span class="kbd">Ctrl+Alt+V</span> VMs, <span class="kbd">Alt+F4</span> Close.</div>`,
+      onmount(el){
+        el.querySelector("#setOffice").onclick = () => applyProfile("office");
+        el.querySelector("#setGaming").onclick = () => applyProfile("gaming");
+        el.querySelector("#setDev").onclick = () => applyProfile("dev");
+        el.querySelector("#toggleTheme").onclick = toggleTheme;
+        const tz = el.querySelector("#tz");
+        const hfmt = el.querySelector("#hfmt");
+        tz.value = timePrefs.tz;
+        hfmt.value = timePrefs.hr24 ? "24h" : "12h";
+        el.querySelector("#saveClock").onclick = ()=>{
+          const val = (tz.value||"").trim();
+          if (val) localStorage.setItem("nova.tz", val); else localStorage.removeItem("nova.tz");
+          localStorage.setItem("nova.hr24", hfmt.value==="24h"?"1":"0");
+          timePrefs.tz = val; timePrefs.hr24 = (hfmt.value==="24h");
+          nowClock();
+          alert("Clock settings saved.");
+        };
+      }
+    });
+  }
+
+  function openAbout(){
+    createWindow({
+      title:"About",
+      html:`<div class="hint">This PRO build adds reliable window controls, keyboard shortcuts, a stronger Terminal bridge, a web VM demo plus a remote VNC viewer for your own 64‑bit VMs, an expanded App Center (pacman / flatpak / Chaotic AUR), and clock/locale settings.</div>`
+    });
+  }
+
+  function openCode(){
+    createWindow({
+      title:"Code (Mini)",
+      width:820,height:560,
+      html:`
+        <div class="toolbar"><button class="btn" id="run">Run (console.log)</button><button class="btn" id="save">Save</button><button class="btn" id="open">Open</button></div>
+        <textarea id="codeArea" style="width:100%;height:380px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:#0b1117;color:var(--text);padding:10px" spellcheck="false">console.log("Hello, Marcelo!")</textarea>
+        <div class="editor" id="codeOut" style="font-family:ui-monospace,monospace;white-space:pre;min-height:130px"></div>`,
+      onmount(el){
+        const ta = el.querySelector("#codeArea");
+        const out = el.querySelector("#codeOut");
+        const log = (...a)=>{ out.textContent += a.join(" ") + "\\n"; out.scrollTop=out.scrollHeight; };
+        el.querySelector("#run").onclick = () => { out.textContent=""; try{ new Function("console", ta.value)({log}); }catch(e){ log("Error:", e.message); } };
+        el.querySelector("#save").onclick = () => {
+          const blob = new Blob([ta.value], {type:"text/plain"});
+          const a = document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="code.js"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+        };
+        el.querySelector("#open").onclick = async () => {
+          try{
+            const [fileHandle] = await window.showOpenFilePicker({types:[{description:"JavaScript",accept:{'text/javascript':['.js'],'text/plain':['.txt']}}]});
+            const f = await fileHandle.getFile();
+            ta.value = await f.text();
+          }catch(err){ log("Open canceled"); }
+        };
+      }
+    });
+  }
+
+  // --- Top/bottom UI --- //
+  $("#btnStart").addEventListener("click", () => { toggle(startMenu); hide(searchPanel); hide(ctx); });
+  $("#btnSearch").addEventListener("click", () => { toggle(searchPanel); hide(startMenu); hide(ctx); $("#searchBox").focus(); });
+  $("#searchGo").addEventListener("click", () => {
+    const q = $("#searchBox").value.trim();
+    if (q) window.open("https://duckduckgo.com/?q="+encodeURIComponent(q), "_blank");
+  });
+
+  function toggleTheme(){
+    if (document.documentElement.dataset.theme === "light"){
+      document.documentElement.dataset.theme = "";
+      document.body.style.background = "radial-gradient(1200px 600px at 20% 15%,#1172d1 0%,#0d1830 55%,#070b12 100%)";
+      document.body.style.color = "";
+    } else {
+      document.documentElement.dataset.theme = "light";
+      document.body.style.background = "linear-gradient(180deg,#f6f7f9,#e9eef5)";
+      document.body.style.color = "#111";
+    }
+  }
+  $("#btnTheme").addEventListener("click", toggleTheme);
+  $("#btnShot").addEventListener("click", () => window.print());
+
+  // Start menu launchers
+  $$("#startMenu .app").forEach(a => a.addEventListener("click", () => launch(a.dataset.open)));
+
+  // Close panels when clicking outside
+  document.addEventListener("click", (e) => {
+    const s = e.target.closest("#startMenu, #btnStart");
+    const sp = e.target.closest("#searchPanel, #btnSearch");
+    const c = e.target.closest("#ctx");
+    if (!s) hide(startMenu);
+    if (!sp) hide(searchPanel);
+    if (!c) hide(ctx);
+  });
+
+  // Context menu
+  document.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    ctx.style.left = e.clientX + "px";
+    ctx.style.top  = e.clientY + "px";
+    show(ctx);
+    hide(startMenu); hide(searchPanel);
+  });
+  $$("#ctx .item").forEach(x => x.addEventListener("click", () => {
+    const act = x.dataset.act;
+    hide(ctx);
+    if (act === "newText"){ openWriter(); }
+    if (act === "openTerminal"){ openTerminal(); }
+    if (act === "applyGaming"){ applyProfile("gaming"); }
+    if (act === "applyOffice"){ applyProfile("office"); }
+    if (act === "applyDev"){ applyProfile("dev"); }
+    if (act === "settings"){ openSettings(); }
+    if (act === "theme"){ toggleTheme(); }
+  }));
+
+  // Setup
+  $$("#setup .preset").forEach(p => p.addEventListener("click", () => {
+    const prof = p.dataset.profile;
+    applyProfile(prof);
+    hide(setup);
+  }));
+
+  // Keyboard shortcuts
+  document.addEventListener("keydown", (e)=>{
+    if (e.ctrlKey && e.altKey && e.code === "KeyT"){ e.preventDefault(); launch("terminal"); }
+    if (e.ctrlKey && e.altKey && e.code === "KeyS"){ e.preventDefault(); launch("store"); }
+    if (e.ctrlKey && e.altKey && e.code === "KeyV"){ e.preventDefault(); launch("vm"); }
+    if (e.altKey && e.code === "F4"){ // close active window
+      e.preventDefault();
+      if (activeWin){ const btn = activeWin.querySelector('[data-act="close"]'); btn && btn.click(); }
+    }
+  });
+
+  ensureProfile();
+  window.NOVA = {launch, applyProfile};
+  // expose bridge globally so App Center can send commands
+  Object.defineProperty(window, "BRIDGE", { get(){ return window._bridge; }, set(v){ window._bridge = v; } });
+
+})();</script>
+</body>
+</html>
