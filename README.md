@@ -55,7 +55,7 @@ In NovaOS → **Web Browser** → open `http://localhost:3000` (built‑in noVNC
 
 Or use the **Arch Desktop (noVNC)** app to connect to your own VNC server (`host:port/path`).
 
-## New file added if you wan to try the store now work with bridge need a main linux machine but can launch and install apps now need giv epermission and execut eit on terminal.
+### New file added if you wan to try the store now work with bridge need a main linux machine but can launch and install apps now need give permission and execute it on terminal.
 
 Give permision to this file MujerOS_AllInOne_v3_3.py with this command  chmod +x MujerOS_AllInOne_v3_3.py ,and them open it on the terminal with this command. ./MujerOS_AllInOne_v3_3.py be warned the computer can be little slow when this happends but will works as charm in working on this.
 
